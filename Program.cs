@@ -24,8 +24,11 @@ class RaftNode
     State = NodeState.Follower;
     CurrentTerm = 0;
 
-    allNodes.Add(this);
-    votesRecord[Id] = (0, null);
+    lock (lockObject)
+    {
+      allNodes.Add(this);
+    }
+    votesRecord[Id] = (CurrentTerm, null);
     ResetElectionTimeout();
   }
 
@@ -38,6 +41,7 @@ class RaftNode
   {
     while (true)
     {
+      Log($"Waiting for {electionTimeout}ms");
       Thread.Sleep(electionTimeout);
       switch (State)
       {
@@ -63,14 +67,16 @@ class RaftNode
 
     lock (lockObject)
     {
+      // get votes
       foreach (var node in allNodes)
       {
         if (node.Id != Id)
         {
           if (node.CurrentTerm <= CurrentTerm && (!votesRecord[node.Id].Item2.HasValue || votesRecord[node.Id].Item1 < CurrentTerm))
           {
+            node.Vote(CurrentTerm, Id);
             voteCount++;
-            Log($"Received vote from {node.Id}");
+            Log($"Received vote from {node.Id} for term {CurrentTerm}");
             if (voteCount > allNodes.Count / 2)
             {
               State = NodeState.Leader;
@@ -82,8 +88,13 @@ class RaftNode
         }
       }
     }
-    Log("Lost election.");
-    State = NodeState.Follower;
+    Log("Lost election. Still candidate.");
+  }
+
+  public void Vote(int term, Guid id)
+  {
+    votesRecord[Id] = (term, id);
+    Log($"Voted for node {id} for term {term}");
   }
 
   private void Follow()
@@ -95,11 +106,14 @@ class RaftNode
   {
     Log("Sending heartbeat as leader");
 
-    foreach (var node in allNodes)
+    lock (lockObject)
     {
-      if (node.Id != Id)
+      foreach (var node in allNodes)
       {
-        node.ReceiveHeartbeat(CurrentTerm);
+        if (node.Id != Id)
+        {
+          node.ReceiveHeartbeat(CurrentTerm);
+        }
       }
     }
   }
@@ -124,7 +138,7 @@ class Raft
 {
   static void Main()
   {
-    var nodes = new RaftNode[3];
+    var nodes = new RaftNode[6];
     for (int i = 0; i < nodes.Length; i++)
     {
       nodes[i] = new RaftNode();
