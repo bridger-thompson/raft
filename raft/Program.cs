@@ -53,6 +53,7 @@ public class RaftNode
 
   public void Act()
   {
+    if (_healthy == false) return;
     switch (State)
     {
       case NodeState.Follower:
