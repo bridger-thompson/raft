@@ -21,9 +21,9 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
             {
-                new RaftNode(true),
-                new RaftNode(true),
-                new RaftNode(false),
+                new(true),
+                new(true),
+                new(false),
             };
 
         SimulateElectionProcess(nodes);
@@ -37,11 +37,11 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
             {
-                new RaftNode(true),
-                new RaftNode(true),
-                new RaftNode(true),
-                new RaftNode(false),
-                new RaftNode(false)
+                new(true),
+                new(true),
+                new(true),
+                new(false),
+                new(false)
             };
 
         SimulateElectionProcess(nodes);
@@ -55,11 +55,11 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
             {
-                new RaftNode(true),
-                new RaftNode(true),
-                new RaftNode(false),
-                new RaftNode(false),
-                new RaftNode(false)
+                new(true),
+                new(true),
+                new(false),
+                new(false),
+                new(false)
             };
 
         SimulateElectionProcess(nodes);
@@ -73,9 +73,9 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
             {
-                new RaftNode(true),
-                new RaftNode(true),
-                new RaftNode(true)
+                new(true),
+                new(true),
+                new(true)
             };
 
         var initialLeader = SimulateElectionProcess(nodes);
@@ -91,9 +91,9 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
             {
-                new RaftNode(true),
-                new RaftNode(true),
-                new RaftNode(true)
+                new(true),
+                new(true),
+                new(true)
             };
 
         var initialLeader = SimulateElectionProcess(nodes);
@@ -110,11 +110,11 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
         {
-            new RaftNode(true),
-            new RaftNode(true),
-            new RaftNode(true),
-            new RaftNode(true),
-            new RaftNode(true)
+            new(true),
+            new(true),
+            new(true),
+            new(true),
+            new(true)
         };
 
         var initialLeader = SimulateElectionProcess(nodes);
@@ -140,11 +140,11 @@ public class RaftNodeElectionTests : IDisposable
     {
         var nodes = new List<RaftNode>
         {
-            new RaftNode(true), // A
-            new RaftNode(true), // B
-            new RaftNode(true), // C
-            new RaftNode(true), // D
-            new RaftNode(true)  // E
+            new(true), // A
+            new(true), // B
+            new(true), // C
+            new(true), // D
+            new(true)  // E
         };
 
         nodes[0].StartElection();
@@ -165,8 +165,64 @@ public class RaftNodeElectionTests : IDisposable
         Assert.True(electedLeader.State == NodeState.Leader, "Original leader should maintain its state.");
     }
 
+    [Fact]
+    public void Node_Becomes_Candidate_After_First_Act()
+    {
+        RaftNode node = new(true);
+        node.Act();
+        Assert.True(node.State == NodeState.Candidate);
+    }
 
-    private RaftNode SimulateElectionProcess(List<RaftNode> nodes)
+    [Fact]
+    public void Nodes_Become_Follower_On_Heartbeat()
+    {
+        var nodes = new List<RaftNode>
+        {
+            new(true),
+            new(true),
+            new(true),
+            new(true),
+            new(true)
+        };
+        var initialLeader = SimulateElectionProcess(nodes);
+        Assert.NotNull(initialLeader);
+        Assert.Equal(4, nodes.Count(n => n.State == NodeState.Follower));
+        var followers = nodes.Where(n => n != initialLeader);
+        foreach (var node in followers)
+        {
+            node.Act();
+        }
+        Assert.Equal(4, nodes.Count(n => n.State == NodeState.Candidate));
+        initialLeader.Act();
+        Assert.Equal(4, nodes.Count(n => n.State == NodeState.Follower));
+    }
+
+    [Fact]
+    public void Node_Transitions_Back_To_Follower_On_Receiving_Newer_Term_Heartbeat()
+    {
+        var nodes = new List<RaftNode>
+        {
+            new(true),
+            new(true),
+            new(true),
+            new(true),
+            new(true)
+        };
+
+        var initialLeader = SimulateElectionProcess(nodes);
+        Assert.NotNull(initialLeader);
+
+        // Set new leader, send out heartbeat to all saying new leader
+        var newLeaderCandidate = nodes.First(n => n != initialLeader);
+        newLeaderCandidate.State = NodeState.Candidate;
+        newLeaderCandidate.Act();
+
+        Assert.Equal(4, nodes.Where(n => n.State == NodeState.Follower).Count());
+        Assert.All(nodes, node => Assert.Equal(newLeaderCandidate.CurrentTerm, node.CurrentTerm));
+        Assert.NotEqual(initialLeader.Id, newLeaderCandidate.Id);
+    }
+
+    private static RaftNode SimulateElectionProcess(List<RaftNode> nodes)
     {
         foreach (var node in nodes)
         {
