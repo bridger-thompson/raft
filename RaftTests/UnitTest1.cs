@@ -214,7 +214,7 @@ public class RaftNodeElectionTests : IDisposable
 
         // Set new leader, send out heartbeat to all saying new leader
         var newLeaderCandidate = nodes.First(n => n != initialLeader);
-        newLeaderCandidate.State = NodeState.Candidate;
+        newLeaderCandidate.Act();
         newLeaderCandidate.Act();
 
         Assert.Equal(4, nodes.Where(n => n.State == NodeState.Follower).Count());
