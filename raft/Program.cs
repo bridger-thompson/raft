@@ -3,9 +3,11 @@ using System.IO;
 using System.Threading;
 using System.Collections.Generic;
 
-enum NodeState { Follower, Candidate, Leader }
+namespace raft;
 
-class RaftNode
+public enum NodeState { Follower, Candidate, Leader }
+
+public class RaftNode
 {
   public Guid Id { get; private set; }
   public NodeState State { get; set; }
@@ -13,12 +15,13 @@ class RaftNode
 
   private readonly static List<RaftNode> allNodes = [];
   private readonly static Dictionary<Guid, (int, Guid?)> votesRecord = [];
-  private readonly object lockObject = new();
+  private readonly static object lockObject = new();
 
   private readonly Random random = new();
   private int electionTimeout;
+  private bool _healthy;
 
-  public RaftNode()
+  public RaftNode(bool healthy = true)
   {
     Id = Guid.NewGuid();
     State = NodeState.Follower;
@@ -30,6 +33,7 @@ class RaftNode
     }
     votesRecord[Id] = (CurrentTerm, null);
     ResetElectionTimeout();
+    _healthy = healthy;
   }
 
   private void ResetElectionTimeout()
@@ -39,32 +43,53 @@ class RaftNode
 
   public void Run()
   {
-    while (true)
+    while (_healthy)
     {
       Log($"Waiting for {electionTimeout}ms");
       Thread.Sleep(electionTimeout);
-      switch (State)
-      {
-        case NodeState.Follower:
-          Follow();
-          break;
-        case NodeState.Candidate:
-          StartElection();
-          break;
-        case NodeState.Leader:
-          SendHeartbeat();
-          break;
-      }
+      Act();
     }
   }
 
-  private void StartElection()
+  public void Act()
+  {
+    switch (State)
+    {
+      case NodeState.Follower:
+        Follow();
+        break;
+      case NodeState.Candidate:
+        StartElection();
+        break;
+      case NodeState.Leader:
+        SendHeartbeat();
+        break;
+    }
+  }
+
+  public bool IsHealthy()
+  {
+    return _healthy;
+  }
+
+  public void Reboot()
+  {
+    State = NodeState.Follower;
+    _healthy = true;
+    ResetElectionTimeout();
+  }
+
+  public void Die()
+  {
+    _healthy = false;
+  }
+
+  public void StartElection()
   {
     Log("Started election.");
     CurrentTerm++;
     int voteCount = 1;
     votesRecord[Id] = (CurrentTerm, Id);
-
     lock (lockObject)
     {
       // get votes
@@ -72,20 +97,23 @@ class RaftNode
       {
         if (node.Id != Id)
         {
-          if (node.CurrentTerm <= CurrentTerm && (!votesRecord[node.Id].Item2.HasValue || votesRecord[node.Id].Item1 < CurrentTerm))
+          if (node.CurrentTerm <= CurrentTerm &&
+            node.IsHealthy() &&
+            (!votesRecord[node.Id].Item2.HasValue || votesRecord[node.Id].Item1 < CurrentTerm)
+          )
           {
             node.Vote(CurrentTerm, Id);
             voteCount++;
             Log($"Received vote from {node.Id} for term {CurrentTerm}");
-            if (voteCount > allNodes.Count / 2)
-            {
-              State = NodeState.Leader;
-              Log("Became the leader");
-              SendHeartbeat();
-              return;
-            }
           }
         }
+      }
+      if (voteCount > allNodes.Count / 2)
+      {
+        State = NodeState.Leader;
+        Log("Became the leader");
+        SendHeartbeat();
+        return;
       }
     }
     Log("Lost election. Still candidate.");
@@ -97,12 +125,12 @@ class RaftNode
     Log($"Voted for node {id} for term {term}");
   }
 
-  private void Follow()
+  public void Follow()
   {
     State = NodeState.Candidate;
   }
 
-  private void SendHeartbeat()
+  public void SendHeartbeat()
   {
     Log("Sending heartbeat as leader");
 
@@ -120,6 +148,7 @@ class RaftNode
 
   public void ReceiveHeartbeat(int termFromLeader)
   {
+    if (_healthy == false) return;
     CurrentTerm = termFromLeader;
     State = NodeState.Follower;
     Log($"Follower. Received heartbeat from leader with term {termFromLeader}");
@@ -132,6 +161,13 @@ class RaftNode
     string filename = $"{Id}.log";
     File.AppendAllText(filename, $"{DateTime.Now}: {message}\n");
   }
+
+  public static void ResetState()
+  {
+    allNodes.Clear();
+    votesRecord.Clear();
+  }
+
 }
 
 class Raft
@@ -141,7 +177,7 @@ class Raft
     var nodes = new RaftNode[6];
     for (int i = 0; i < nodes.Length; i++)
     {
-      nodes[i] = new RaftNode();
+      nodes[i] = new RaftNode(true);
     }
 
     foreach (var node in nodes)
