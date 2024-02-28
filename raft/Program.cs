@@ -7,6 +7,14 @@ namespace raft;
 
 public enum NodeState { Follower, Candidate, Leader }
 
+public class LogEntry
+{
+  public int LogIndex { get; set; }
+  public string Key { get; set; } = string.Empty;
+  public int Value { get; set; }
+  public int Term { get; set; }
+}
+
 public class RaftNode
 {
   public Guid Id { get; private set; }
@@ -20,6 +28,11 @@ public class RaftNode
   private readonly Random random = new();
   private int electionTimeout;
   private bool _healthy;
+
+  public List<LogEntry> LogEntries { get; private set; } = [];
+  public static Guid? MostRecentLeaderId { get; set; }
+  public Dictionary<string, (int value, int logIndex)> DataLog = [];
+
 
   public RaftNode(bool healthy = true)
   {
@@ -137,23 +150,12 @@ public class RaftNode
 
     lock (lockObject)
     {
-      foreach (var node in allNodes)
+      foreach (var node in allNodes.Where(n => n.Id != Id))
       {
-        if (node.Id != Id)
-        {
-          node.ReceiveHeartbeat(CurrentTerm);
-        }
+        var entriesToReplicate = LogEntries.Where(e => !node.LogEntries.Select(le => le.LogIndex).Contains(e.LogIndex)).ToList();
+        node.ReceiveAppendEntries(CurrentTerm, Id, entriesToReplicate);
       }
     }
-  }
-
-  public void ReceiveHeartbeat(int termFromLeader)
-  {
-    if (_healthy == false) return;
-    CurrentTerm = termFromLeader;
-    State = NodeState.Follower;
-    Log($"Follower. Received heartbeat from leader with term {termFromLeader}");
-
     ResetElectionTimeout();
   }
 
@@ -169,6 +171,31 @@ public class RaftNode
     votesRecord.Clear();
   }
 
+  public void AppendEntry(LogEntry entry)
+  {
+    LogEntries.Add(entry);
+    DataLog[entry.Key] = (entry.Value, entry.LogIndex);
+    Log($"Appended log entry: {entry.Key} = {entry.Value}");
+  }
+
+  public void ReceiveAppendEntries(int term, Guid leaderId, List<LogEntry> entries)
+  {
+    if (!_healthy) return;
+
+    if (term >= CurrentTerm)
+    {
+      State = NodeState.Follower;
+      CurrentTerm = term;
+      MostRecentLeaderId = leaderId;
+      Log($"Follower. Received {entries.Count} AppendEntries from {leaderId} with term {term}");
+
+      foreach (var entry in entries)
+      {
+        AppendEntry(entry);
+      }
+      ResetElectionTimeout();
+    }
+  }
 }
 
 class Raft
@@ -185,6 +212,24 @@ class Raft
     {
       var thread = new Thread(new ThreadStart(node.Run));
       thread.Start();
+    }
+
+    Gateway gateway = new(new(nodes));
+
+    var count = 0;
+    while (true)
+    {
+      bool writeSuccess = gateway.Write("someKey", count);
+      var readValue = gateway.EventualGet("someKey");
+      var readValueStrong = gateway.StrongGet("someKey");
+      var casResult = gateway.CompareVersionAndSwap("someKey", expectedValue: count, newValue: count + 1);
+
+      Console.WriteLine($"Read (Eventual): {readValue}");
+      Console.WriteLine($"Read (Strong): {readValueStrong}");
+      Console.WriteLine($"CAS Result: {casResult}\n");
+
+      count++;
+      Thread.Sleep(500);
     }
   }
 }

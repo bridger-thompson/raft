@@ -231,4 +231,107 @@ public class RaftNodeElectionTests : IDisposable
         }
         return nodes.FirstOrDefault(n => n.State == NodeState.Leader);
     }
+
+    [Fact]
+    public void LogEntries_Replicated_Across_All_Healthy_Nodes()
+    {
+        var nodes = new List<RaftNode>
+        {
+            new(true),
+            new(true),
+            new(true)
+        };
+
+        var leader = SimulateElectionProcess(nodes);
+        Assert.NotNull(leader);
+
+        var gateway = new Gateway(nodes);
+        bool writeSuccess = gateway.Write("testKey", 123);
+        Assert.True(writeSuccess);
+
+        leader.SendHeartbeat();
+
+        foreach (var node in nodes)
+        {
+            Assert.Contains(node.LogEntries, e => e.Key == "testKey" && e.Value == 123);
+        }
+    }
+
+    [Fact]
+    public void EventualGet_Returns_Correct_Value_After_Write()
+    {
+        var nodes = SetupCluster();
+        var leader = SimulateElectionProcess(nodes);
+        var gateway = new Gateway(nodes);
+        gateway.Write("eventualKey", 456);
+        leader.SendHeartbeat();
+
+        Thread.Sleep(1000);
+
+        var value = gateway.EventualGet("eventualKey");
+        Assert.Equal(456, value);
+    }
+
+    [Fact]
+    public void StrongGet_Returns_Correct_Value_After_Write()
+    {
+        var nodes = SetupCluster();
+        var leader = SimulateElectionProcess(nodes);
+        var gateway = new Gateway(nodes);
+        gateway.Write("strongKey", 789);
+        leader.SendHeartbeat();
+
+        Thread.Sleep(1000);
+
+        var value = gateway.StrongGet("strongKey");
+        Assert.Equal(789, value);
+    }
+
+    private static List<RaftNode> SetupCluster()
+    {
+        var nodes = new List<RaftNode>
+        {
+            new(true),
+            new(true),
+            new(true)
+        };
+        return nodes;
+    }
+
+    [Fact]
+    public void CompareVersionAndSwap_Successful_When_ExpectedValue_Matches()
+    {
+        var nodes = SetupCluster();
+        var leader = SimulateElectionProcess(nodes);
+        var gateway = new Gateway(nodes);
+        gateway.Write("casKey", 101112);
+        leader.SendHeartbeat();
+
+        Thread.Sleep(1000);
+
+        var casResult = gateway.CompareVersionAndSwap("casKey", 101112, 131415);
+        Assert.True(casResult);
+
+        var newValue = gateway.StrongGet("casKey");
+        Assert.Equal(131415, newValue);
+    }
+
+    [Fact]
+    public void CompareVersionAndSwap_Fails_When_ExpectedValue_Does_Not_Match()
+    {
+        var nodes = SetupCluster();
+        var leader = SimulateElectionProcess(nodes);
+        var gateway = new Gateway(nodes);
+        gateway.Write("casKey", 101112);
+        leader.SendHeartbeat();
+
+        Thread.Sleep(1000);
+
+        var casResult = gateway.CompareVersionAndSwap("casKey", 999999, 131415);
+        Assert.False(casResult);
+
+        var value = gateway.StrongGet("casKey");
+        Assert.Equal(101112, value);
+    }
+
 }
