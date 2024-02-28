@@ -54,17 +54,17 @@ public class RaftNode
     electionTimeout = random.Next(150, 300);
   }
 
-  public void Run()
+  public async Task Run()
   {
     while (_healthy)
     {
       Log($"Waiting for {electionTimeout}ms");
       Thread.Sleep(electionTimeout);
-      Act();
+      await Act();
     }
   }
 
-  public void Act()
+  public async Task Act()
   {
     if (_healthy == false) return;
     switch (State)
@@ -73,10 +73,10 @@ public class RaftNode
         Follow();
         break;
       case NodeState.Candidate:
-        StartElection();
+        await StartElection();
         break;
       case NodeState.Leader:
-        SendHeartbeat();
+        await SendHeartbeatAsync();
         break;
     }
   }
@@ -98,7 +98,7 @@ public class RaftNode
     _healthy = false;
   }
 
-  public void StartElection()
+  public async Task StartElection()
   {
     Log("Started election.");
     CurrentTerm++;
@@ -122,13 +122,13 @@ public class RaftNode
           }
         }
       }
-      if (voteCount > allNodes.Count / 2)
-      {
-        State = NodeState.Leader;
-        Log("Became the leader");
-        SendHeartbeat();
-        return;
-      }
+    }
+    if (voteCount > allNodes.Count / 2)
+    {
+      State = NodeState.Leader;
+      Log("Became the leader");
+      await SendHeartbeatAsync();
+      return;
     }
     Log("Lost election. Still candidate.");
   }
@@ -144,20 +144,44 @@ public class RaftNode
     State = NodeState.Candidate;
   }
 
-  public void SendHeartbeat()
+  public async Task SendHeartbeatAsync()
   {
     Log("Sending heartbeat as leader");
 
-    lock (lockObject)
+    var tasks = new List<Task<bool>>();
+    int majority = (allNodes.Count / 2) + 1;
+    int responses = 0;
+
+    foreach (var node in allNodes.Where(n => n.Id != Id))
     {
-      foreach (var node in allNodes.Where(n => n.Id != Id))
+      tasks.Add(Task.Run(() =>
       {
         var entriesToReplicate = LogEntries.Where(e => !node.LogEntries.Select(le => le.LogIndex).Contains(e.LogIndex)).ToList();
         node.ReceiveAppendEntries(CurrentTerm, Id, entriesToReplicate);
+        return true;
+      }));
+    }
+
+    while (responses < majority && tasks.Count != 0)
+    {
+      var completedTask = await Task.WhenAny(tasks);
+      tasks.Remove(completedTask);
+
+      if (await completedTask)
+      {
+        responses++;
+      }
+
+      if (responses >= majority)
+      {
+        break;
       }
     }
+
     ResetElectionTimeout();
+    Log($"Heartbeat acknowledged by majority of {responses} nodes.");
   }
+
 
   private void Log(string message)
   {
@@ -210,7 +234,7 @@ class Raft
 
     foreach (var node in nodes)
     {
-      var thread = new Thread(new ThreadStart(node.Run));
+      var thread = new Thread(new ThreadStart(async () => await node.Run()));
       thread.Start();
     }
 

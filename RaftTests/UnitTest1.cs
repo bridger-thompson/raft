@@ -17,7 +17,7 @@ public class RaftNodeElectionTests : IDisposable
     }
 
     [Fact]
-    public void Leader_Elected_If_Two_Of_Three_Nodes_Are_Healthy()
+    public async void Leader_Elected_If_Two_Of_Three_Nodes_Are_Healthy()
     {
         var nodes = new List<RaftNode>
             {
@@ -26,14 +26,14 @@ public class RaftNodeElectionTests : IDisposable
                 new(false),
             };
 
-        SimulateElectionProcess(nodes);
+        await SimulateElectionProcess(nodes);
 
         int leadersCount = nodes.Count(n => n.State == NodeState.Leader);
         Assert.Equal(1, leadersCount);
     }
 
     [Fact]
-    public void Leader_Elected_If_Three_Of_Five_Nodes_Are_Healthy()
+    public async void Leader_Elected_If_Three_Of_Five_Nodes_Are_Healthy()
     {
         var nodes = new List<RaftNode>
             {
@@ -44,14 +44,14 @@ public class RaftNodeElectionTests : IDisposable
                 new(false)
             };
 
-        SimulateElectionProcess(nodes);
+        await SimulateElectionProcess(nodes);
 
         int leadersCount = nodes.Count(n => n.State == NodeState.Leader);
         Assert.Equal(1, leadersCount);
     }
 
     [Fact]
-    public void Leader_Not_Elected_If_Three_Of_Five_Nodes_Are_Unhealthy()
+    public async void Leader_Not_Elected_If_Three_Of_Five_Nodes_Are_Unhealthy()
     {
         var nodes = new List<RaftNode>
             {
@@ -62,7 +62,7 @@ public class RaftNodeElectionTests : IDisposable
                 new(false)
             };
 
-        SimulateElectionProcess(nodes);
+        await SimulateElectionProcess(nodes);
 
         int leadersCount = nodes.Count(n => n.State == NodeState.Leader);
         Assert.Equal(0, leadersCount);
@@ -78,7 +78,7 @@ public class RaftNodeElectionTests : IDisposable
                 new(true)
             };
 
-        var initialLeader = SimulateElectionProcess(nodes);
+        var initialLeader = SimulateElectionProcess(nodes).Result;
         initialLeader?.Act();
 
         Assert.True(initialLeader?.State == NodeState.Leader);
@@ -87,7 +87,7 @@ public class RaftNodeElectionTests : IDisposable
     }
 
     [Fact]
-    public void Node_Calls_For_Election_If_Leader_Takes_Too_Long()
+    public async void Node_Calls_For_Election_If_Leader_Takes_Too_Long()
     {
         var nodes = new List<RaftNode>
             {
@@ -96,17 +96,17 @@ public class RaftNodeElectionTests : IDisposable
                 new(true)
             };
 
-        var initialLeader = SimulateElectionProcess(nodes);
+        var initialLeader = SimulateElectionProcess(nodes).Result;
 
         var follower = nodes.First(n => n != initialLeader);
-        follower.Act();
+        await follower.Act();
         Assert.Equal(NodeState.Candidate, follower.State);
-        follower.Act();
+        await follower.Act();
         Assert.Equal(NodeState.Leader, follower.State);
     }
 
     [Fact]
-    public void Leader_Continues_If_Two_Of_Five_Nodes_Become_Unhealthy()
+    public async void Leader_Continues_If_Two_Of_Five_Nodes_Become_Unhealthy()
     {
         var nodes = new List<RaftNode>
         {
@@ -117,7 +117,7 @@ public class RaftNodeElectionTests : IDisposable
             new(true)
         };
 
-        var initialLeader = SimulateElectionProcess(nodes);
+        var initialLeader = SimulateElectionProcess(nodes).Result;
         Assert.NotNull(initialLeader);
 
         var nodesToBecomeUnhealthy = nodes.Where(n => n != initialLeader).Take(2).ToList();
@@ -128,7 +128,7 @@ public class RaftNodeElectionTests : IDisposable
 
         foreach (var node in nodes)
         {
-            node.Act();
+            await node.Act();
         }
 
         Assert.True(initialLeader.State == NodeState.Leader, "The initial leader should continue leading.");
@@ -136,7 +136,7 @@ public class RaftNodeElectionTests : IDisposable
     }
 
     [Fact]
-    public void Avoids_Double_Voting_After_Reboot()
+    public async void Avoids_Double_Voting_After_Reboot()
     {
         var nodes = new List<RaftNode>
         {
@@ -147,7 +147,7 @@ public class RaftNodeElectionTests : IDisposable
             new(true)  // E
         };
 
-        nodes[0].StartElection();
+        await nodes[0].StartElection();
 
         var electedLeader = nodes.FirstOrDefault(n => n.State == NodeState.Leader);
         foreach (var node in nodes.Skip(1).Take(3))
@@ -156,7 +156,7 @@ public class RaftNodeElectionTests : IDisposable
         }
 
         nodes[4].CurrentTerm--;
-        nodes[4].StartElection();
+        await nodes[4].StartElection();
 
         // Assert: Ensure that nodes B, C, and D do not vote again in the same term after rebooting.
         Assert.NotEqual(NodeState.Leader, nodes[4].State);
@@ -166,15 +166,15 @@ public class RaftNodeElectionTests : IDisposable
     }
 
     [Fact]
-    public void Node_Becomes_Candidate_After_First_Act()
+    public async void Node_Becomes_Candidate_After_First_Act()
     {
         RaftNode node = new(true);
-        node.Act();
+        await node.Act();
         Assert.True(node.State == NodeState.Candidate);
     }
 
     [Fact]
-    public void Nodes_Become_Follower_On_Heartbeat()
+    public async void Nodes_Become_Follower_On_Heartbeat()
     {
         var nodes = new List<RaftNode>
         {
@@ -184,21 +184,21 @@ public class RaftNodeElectionTests : IDisposable
             new(true),
             new(true)
         };
-        var initialLeader = SimulateElectionProcess(nodes);
+        var initialLeader = SimulateElectionProcess(nodes).Result;
         Assert.NotNull(initialLeader);
         Assert.Equal(4, nodes.Count(n => n.State == NodeState.Follower));
         var followers = nodes.Where(n => n != initialLeader);
         foreach (var node in followers)
         {
-            node.Act();
+            await node.Act();
         }
         Assert.Equal(4, nodes.Count(n => n.State == NodeState.Candidate));
-        initialLeader.Act();
+        await initialLeader.Act();
         Assert.Equal(4, nodes.Count(n => n.State == NodeState.Follower));
     }
 
     [Fact]
-    public void Node_Transitions_Back_To_Follower_On_Receiving_Newer_Term_Heartbeat()
+    public async void Node_Transitions_Back_To_Follower_On_Receiving_Newer_Term_Heartbeat()
     {
         var nodes = new List<RaftNode>
         {
@@ -209,25 +209,26 @@ public class RaftNodeElectionTests : IDisposable
             new(true)
         };
 
-        var initialLeader = SimulateElectionProcess(nodes);
+        var initialLeader = SimulateElectionProcess(nodes).Result;
         Assert.NotNull(initialLeader);
+        Thread.Sleep(1000);
 
         // Set new leader, send out heartbeat to all saying new leader
         var newLeaderCandidate = nodes.First(n => n != initialLeader);
-        newLeaderCandidate.Act();
-        newLeaderCandidate.Act();
+        await newLeaderCandidate.Act();
+        await newLeaderCandidate.Act();
 
         Assert.Equal(4, nodes.Where(n => n.State == NodeState.Follower).Count());
         Assert.All(nodes, node => Assert.Equal(newLeaderCandidate.CurrentTerm, node.CurrentTerm));
-        Assert.NotEqual(initialLeader.Id, newLeaderCandidate.Id);
+        Assert.NotEqual(initialLeader?.Id, newLeaderCandidate.Id);
     }
 
-    private static RaftNode? SimulateElectionProcess(List<RaftNode> nodes)
+    private static async Task<RaftNode?> SimulateElectionProcess(List<RaftNode> nodes)
     {
         foreach (var node in nodes)
         {
-            node.Act(); // first act to switch from follower to candidate
-            node.Act(); // second act to start election
+            await node.Act(); // first act to switch from follower to candidate
+            await node.Act(); // second act to start election
         }
         return nodes.FirstOrDefault(n => n.State == NodeState.Leader);
     }
@@ -242,14 +243,14 @@ public class RaftNodeElectionTests : IDisposable
             new(true)
         };
 
-        var leader = SimulateElectionProcess(nodes);
+        var leader = SimulateElectionProcess(nodes).Result;
         Assert.NotNull(leader);
 
         var gateway = new Gateway(nodes);
         bool writeSuccess = gateway.Write("testKey", 123);
         Assert.True(writeSuccess);
 
-        leader?.SendHeartbeat();
+        leader?.SendHeartbeatAsync();
 
         foreach (var node in nodes)
         {
@@ -261,10 +262,11 @@ public class RaftNodeElectionTests : IDisposable
     public void EventualGet_Returns_Correct_Value_After_Write()
     {
         var nodes = SetupCluster();
-        var leader = SimulateElectionProcess(nodes);
+        var leader = SimulateElectionProcess(nodes).Result;
         var gateway = new Gateway(nodes);
         gateway.Write("eventualKey", 456);
-        leader?.SendHeartbeat();
+        leader?.SendHeartbeatAsync();
+        Thread.Sleep(1000);
 
         var value = gateway.EventualGet("eventualKey");
         Assert.Equal(456, value);
@@ -274,10 +276,10 @@ public class RaftNodeElectionTests : IDisposable
     public void StrongGet_Returns_Correct_Value_After_Write()
     {
         var nodes = SetupCluster();
-        var leader = SimulateElectionProcess(nodes);
+        var leader = SimulateElectionProcess(nodes).Result;
         var gateway = new Gateway(nodes);
         gateway.Write("strongKey", 789);
-        leader?.SendHeartbeat();
+        leader?.SendHeartbeatAsync();
 
         var value = gateway.StrongGet("strongKey");
         Assert.Equal(789, value);
@@ -298,10 +300,10 @@ public class RaftNodeElectionTests : IDisposable
     public void CompareVersionAndSwap_Successful_When_ExpectedValue_Matches()
     {
         var nodes = SetupCluster();
-        var leader = SimulateElectionProcess(nodes);
+        var leader = SimulateElectionProcess(nodes).Result;
         var gateway = new Gateway(nodes);
         gateway.Write("casKey", 101112);
-        leader?.SendHeartbeat();
+        leader?.SendHeartbeatAsync();
 
         var casResult = gateway.CompareVersionAndSwap("casKey", 101112, 131415);
         Assert.True(casResult);
@@ -314,10 +316,10 @@ public class RaftNodeElectionTests : IDisposable
     public void CompareVersionAndSwap_Fails_When_ExpectedValue_Does_Not_Match()
     {
         var nodes = SetupCluster();
-        var leader = SimulateElectionProcess(nodes);
+        var leader = SimulateElectionProcess(nodes).Result;
         var gateway = new Gateway(nodes);
         gateway.Write("casKey", 101112);
-        leader?.SendHeartbeat();
+        leader?.SendHeartbeatAsync();
 
         var casResult = gateway.CompareVersionAndSwap("casKey", 999999, 131415);
         Assert.False(casResult);
