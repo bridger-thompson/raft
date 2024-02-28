@@ -79,9 +79,9 @@ public class RaftNodeElectionTests : IDisposable
             };
 
         var initialLeader = SimulateElectionProcess(nodes);
-        initialLeader.Act();
+        initialLeader?.Act();
 
-        Assert.True(initialLeader.State == NodeState.Leader);
+        Assert.True(initialLeader?.State == NodeState.Leader);
         Assert.Equal(1, nodes.Count(n => n.State == NodeState.Leader));
         Assert.Equal(2, nodes.Count(n => n.State == NodeState.Follower));
     }
@@ -162,7 +162,7 @@ public class RaftNodeElectionTests : IDisposable
         Assert.NotEqual(NodeState.Leader, nodes[4].State);
 
         // Further assert that the original leader remains, indicating no successful reelection occurred.
-        Assert.True(electedLeader.State == NodeState.Leader, "Original leader should maintain its state.");
+        Assert.True(electedLeader?.State == NodeState.Leader, "Original leader should maintain its state.");
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class RaftNodeElectionTests : IDisposable
         Assert.NotEqual(initialLeader.Id, newLeaderCandidate.Id);
     }
 
-    private static RaftNode SimulateElectionProcess(List<RaftNode> nodes)
+    private static RaftNode? SimulateElectionProcess(List<RaftNode> nodes)
     {
         foreach (var node in nodes)
         {
@@ -249,7 +249,7 @@ public class RaftNodeElectionTests : IDisposable
         bool writeSuccess = gateway.Write("testKey", 123);
         Assert.True(writeSuccess);
 
-        leader.SendHeartbeat();
+        leader?.SendHeartbeat();
 
         foreach (var node in nodes)
         {
@@ -264,7 +264,7 @@ public class RaftNodeElectionTests : IDisposable
         var leader = SimulateElectionProcess(nodes);
         var gateway = new Gateway(nodes);
         gateway.Write("eventualKey", 456);
-        leader.SendHeartbeat();
+        leader?.SendHeartbeat();
 
         Thread.Sleep(1000);
 
@@ -279,7 +279,7 @@ public class RaftNodeElectionTests : IDisposable
         var leader = SimulateElectionProcess(nodes);
         var gateway = new Gateway(nodes);
         gateway.Write("strongKey", 789);
-        leader.SendHeartbeat();
+        leader?.SendHeartbeat();
 
         Thread.Sleep(1000);
 
@@ -305,7 +305,7 @@ public class RaftNodeElectionTests : IDisposable
         var leader = SimulateElectionProcess(nodes);
         var gateway = new Gateway(nodes);
         gateway.Write("casKey", 101112);
-        leader.SendHeartbeat();
+        leader?.SendHeartbeat();
 
         Thread.Sleep(1000);
 
@@ -323,7 +323,7 @@ public class RaftNodeElectionTests : IDisposable
         var leader = SimulateElectionProcess(nodes);
         var gateway = new Gateway(nodes);
         gateway.Write("casKey", 101112);
-        leader.SendHeartbeat();
+        leader?.SendHeartbeat();
 
         Thread.Sleep(1000);
 

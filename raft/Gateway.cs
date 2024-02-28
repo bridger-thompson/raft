@@ -9,28 +9,31 @@ public class Gateway
     this.nodes = nodes;
   }
 
+  private RaftNode? FindLeader()
+  {
+    var leader = nodes.FirstOrDefault(n => n.Id == RaftNode.MostRecentLeaderId);
+    return leader;
+  }
+
   public int? EventualGet(string key)
   {
-    // Fetch from any node for eventual consistency
     var node = nodes[random.Next(nodes.Count)];
-    return node.DataLog.TryGetValue(key, out var value) ? value.value : (int?)null;
+    return node.DataLog.TryGetValue(key, out var value) ? value.value : null;
   }
 
   public int? StrongGet(string key)
   {
-    // Fetch from the leader for strong consistency
-    var leader = nodes.FirstOrDefault(n => n.Id == RaftNode.MostRecentLeaderId);
+    var leader = FindLeader();
     if (leader != null && leader.State == NodeState.Leader)
     {
-      return leader.DataLog.TryGetValue(key, out var value) ? value.value : (int?)null;
+      return leader.DataLog.TryGetValue(key, out var value) ? value.value : null;
     }
     return null;
   }
 
   public bool CompareVersionAndSwap(string key, int expectedValue, int newValue)
   {
-    // Only the leader should handle this operation
-    var leader = nodes.FirstOrDefault(n => n.Id == RaftNode.MostRecentLeaderId && n.State == NodeState.Leader);
+    var leader = FindLeader();
     if (leader != null && leader.DataLog.TryGetValue(key, out var value) && value.value == expectedValue)
     {
       var newLogIndex = leader.LogEntries.Max(e => e.LogIndex) + 1;
@@ -42,7 +45,7 @@ public class Gateway
 
   public bool Write(string key, int value)
   {
-    var leader = nodes.FirstOrDefault(n => n.Id == RaftNode.MostRecentLeaderId && n.State == NodeState.Leader);
+    var leader = FindLeader();
     if (leader != null)
     {
       var newLogIndex = leader.LogEntries.Count != 0 ? leader.LogEntries.Max(e => e.LogIndex) + 1 : 0;
