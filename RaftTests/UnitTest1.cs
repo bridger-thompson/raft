@@ -266,8 +266,6 @@ public class RaftNodeElectionTests : IDisposable
         gateway.Write("eventualKey", 456);
         leader?.SendHeartbeat();
 
-        Thread.Sleep(1000);
-
         var value = gateway.EventualGet("eventualKey");
         Assert.Equal(456, value);
     }
@@ -280,8 +278,6 @@ public class RaftNodeElectionTests : IDisposable
         var gateway = new Gateway(nodes);
         gateway.Write("strongKey", 789);
         leader?.SendHeartbeat();
-
-        Thread.Sleep(1000);
 
         var value = gateway.StrongGet("strongKey");
         Assert.Equal(789, value);
@@ -307,8 +303,6 @@ public class RaftNodeElectionTests : IDisposable
         gateway.Write("casKey", 101112);
         leader?.SendHeartbeat();
 
-        Thread.Sleep(1000);
-
         var casResult = gateway.CompareVersionAndSwap("casKey", 101112, 131415);
         Assert.True(casResult);
 
@@ -324,8 +318,6 @@ public class RaftNodeElectionTests : IDisposable
         var gateway = new Gateway(nodes);
         gateway.Write("casKey", 101112);
         leader?.SendHeartbeat();
-
-        Thread.Sleep(1000);
 
         var casResult = gateway.CompareVersionAndSwap("casKey", 999999, 131415);
         Assert.False(casResult);
