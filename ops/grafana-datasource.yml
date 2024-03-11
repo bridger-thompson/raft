@@ -1,0 +1,9 @@
+﻿datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://raft-loki:3100
+    editable: true
+    basic_auth: false
+    org_id: 1
+    version: 1

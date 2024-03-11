@@ -44,3 +44,37 @@ services:
       - 8500:8080
     environment:
       - NODES="raft_node_1,raft_node_2,raft_node_3"
+
+  raft-grafana:
+    image: grafana/grafana:latest
+    container_name: raft-grafana
+    user: 1000:1000
+    ports:
+      - 8499:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/grafana-datasource.yml
+
+  raft-loki:
+    image: grafana/loki:latest
+    container_name: raft-loki
+    ports:
+      - 8498:3100
+
+  raft-otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    container_name: raft-otel-collector
+    volumes:
+      - ./ops/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - 1888:1888 # pprof extension
+      - 13133:13133 # health_check extension
+      - 4317:4317 # OTLP gRPC receiver
+      - 4318:4318 # OTLP http receiver
+      - 55679:55679 # zpages extension
+
+volumes:
+  grafana_data:
