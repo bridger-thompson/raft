@@ -70,10 +70,10 @@ services:
     volumes:
       - ./ops/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
     ports:
-      - 1888:1888 # pprof extension
-      - 13133:13133 # health_check extension
-      - 4317:4317 # OTLP gRPC receiver
-      - 4318:4318 # OTLP http receiver
+      - 1889:1888 # pprof extension
+      - 13134:13133 # health_check extension
+      - 4316:4317 # OTLP gRPC receiver
+      - 4319:4318 # OTLP http receiver
       - 55680:55679 # zpages extension
 
 volumes:
