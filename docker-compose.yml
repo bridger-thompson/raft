@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: RaftNode/Dockerfile
     ports:
-      - 85001:8080
+      - 8501:8080
     environment:
       - NODES="raft_node_2,raft_node_3"
 
@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: RaftNode/Dockerfile
     ports:
-      - 85002:8080
+      - 8502:8080
     environment:
       - NODES="raft_node_1,raft_node_3"
 
@@ -30,7 +30,7 @@ services:
       context: .
       dockerfile: RaftNode/Dockerfile
     ports:
-      - 85003:8080
+      - 8503:8080
     environment:
       - NODES="raft_node_1,raft_node_2"
 
@@ -41,6 +41,6 @@ services:
       context: .
       dockerfile: RaftGateway/Dockerfile
     ports:
-      - 85000:8080
+      - 8500:8080
     environment:
       - NODES="raft_node_1,raft_node_2,raft_node_3"
