@@ -1,0 +1,41 @@
+name: Distributed Raft App
+run-name: ${{ github.actor }} is deploying 🚀
+on: [push]
+
+jobs:
+  Build:
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Build Docker images
+        run: |
+          docker compose build 
+
+  Test:
+    runs-on: self-hosted
+    needs: Build
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: '8.0'
+      - name: Run tests
+        run: dotnet test RaftTests
+
+  Deploy:
+    needs: [Test]
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+  
+      - name: Deploy on machine
+        run: |
+          docker compose down
+          docker compose up -d
+          
+  

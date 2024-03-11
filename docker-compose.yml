@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+  raft_node_1:
+    container_name: raft_node_1
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8081:8080
+    environment:
+      - NODES="raft_node_2,raft_node_3"
+
+  raft_node_2:
+    container_name: raft_node_2
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8082:8080
+    environment:
+      - NODES="raft_node_1,raft_node_3"
+
+  raft_node_3:
+    container_name: raft_node_3
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8083:8080
+    environment:
+      - NODES="raft_node_1,raft_node_2"
+
+  raft_gateway:
+    container_name: raft_gateway
+    image: raft_gateway
+    build:
+      context: .
+      dockerfile: RaftGateway/Dockerfile
+    ports:
+      - 8080:8080
+    environment:
+      - NODES="raft_node_1,raft_node_2,raft_node_3"
