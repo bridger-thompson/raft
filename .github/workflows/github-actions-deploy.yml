@@ -3,18 +3,8 @@ run-name: ${{ github.actor }} is deploying 🚀
 on: [push]
 
 jobs:
-  Build:
-    runs-on: self-hosted
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Build Docker images
-        run: |
-          docker compose build 
-
   Test:
-    runs-on: self-hosted
-    needs: Build
+    runs-on: office-3
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -26,16 +16,48 @@ jobs:
       - name: Run tests
         run: dotnet test RaftTests
 
+  Build:
+    needs: Test
+    runs-on: office-3
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Build Docker images
+        run: |
+          docker-compose -f docker-compose.yml build 
+
+  Build2:
+    needs: Test
+    runs-on: office-2
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Build Docker images
+        run: |
+          docker-compose -f docker-compose2.yml build 
+
   Deploy:
-    needs: [Test]
-    runs-on: self-hosted
+    needs: Build
+    runs-on: office-3
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
   
       - name: Deploy on machine
         run: |
-          docker compose down
-          docker compose up -d
+          docker-compose -f docker-compose.yml down
+          docker-compose -f docker-compose.yml up -d
+
+  Deploy2:
+    needs: Build2
+    runs-on: office-2
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+  
+      - name: Deploy on machine
+        run: |
+          docker-compose -f docker-compose2.yml down
+          docker-compose -f docker-compose2.yml up -d
           
   

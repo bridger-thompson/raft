@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  raft_node_3:
+    container_name: raft_node_3
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8503:8080
+    environment:
+      - NODES="raft_node_1,raft_node_2"
