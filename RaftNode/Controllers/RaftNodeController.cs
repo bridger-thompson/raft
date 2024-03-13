@@ -10,10 +10,10 @@ namespace RaftNode.Controllers;
 [Route("[controller]")]
 public class RaftNodeController : ControllerBase
 {
-  private readonly RaftNode raftNode;
+  private readonly Node raftNode;
   private readonly ILogger<RaftNodeController> logger;
 
-  public RaftNodeController(RaftNode raftNode, ILogger<RaftNodeController> logger)
+  public RaftNodeController(Node raftNode, ILogger<RaftNodeController> logger)
   {
     this.raftNode = raftNode;
     this.logger = logger;
@@ -27,7 +27,6 @@ public class RaftNodeController : ControllerBase
       raftNode.Id,
       State = raftNode.State.ToString(),
       raftNode.CurrentTerm,
-      MostRecentLeaderId = RaftNode.MostRecentLeaderId
     });
   }
 
@@ -47,11 +46,11 @@ public class RaftNodeController : ControllerBase
   }
 
   [HttpPost("appendEntries")]
-  public async Task<IActionResult> AppendEntries([FromBody] AppendEntriesRequest request)
+  public IActionResult AppendEntries([FromBody] AppendEntriesRequest request)
   {
     try
     {
-      await raftNode.ReceiveAppendEntries(request.Term, request.LeaderId, request.Entries);
+      raftNode.ReceiveAppendEntries(request.Term, request.LeaderId, request.Entries);
       return Ok(new { Success = true });
     }
     catch (Exception ex)

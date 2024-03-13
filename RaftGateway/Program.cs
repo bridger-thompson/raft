@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
+using RaftShared;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,11 +10,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
-builder.Services.AddHttpClient();
 
-var nodes = Environment.GetEnvironmentVariable("NODES")?.Split(',') ?? [];
-services.AddSingleton<RaftGateway>(provider => new RaftGateway(nodes));
-
+var nodes = Environment.GetEnvironmentVariable("NODES")?.Split(',')?.ToList() ?? [];
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var logger = serviceProvider.GetRequiredService<ILogger<Gateway>>();
+    return new Gateway(nodes, logger);
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>

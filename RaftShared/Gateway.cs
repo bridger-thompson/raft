@@ -7,17 +7,17 @@ using Microsoft.Extensions.Logging;
 
 namespace RaftShared
 {
-  public class RaftGateway
+  public class Gateway
   {
     private readonly List<string> nodeUrls;
     private readonly HttpClient httpClient;
-    private readonly ILogger<RaftGateway> logger;
+    private readonly ILogger<Gateway> logger;
     private readonly Random random = new();
 
-    public RaftGateway(List<string> nodeUrls, HttpClient httpClient, ILogger<RaftGateway> logger)
+    public Gateway(List<string> nodeUrls, ILogger<Gateway> logger)
     {
       this.nodeUrls = nodeUrls;
-      this.httpClient = httpClient;
+      this.httpClient = new HttpClient();
       this.logger = logger;
     }
 

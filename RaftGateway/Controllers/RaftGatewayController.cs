@@ -10,17 +10,17 @@ namespace RaftGateway.RaftGatewayController;
 [Route("[controller]")]
 public class RaftGatewayController : ControllerBase
 {
-  private readonly RaftGateway raftGateway;
+  private readonly Gateway raftGateway;
 
-  public RaftGatewayController(RaftGateway raftGateway)
+  public RaftGatewayController(Gateway raftGateway)
   {
     this.raftGateway = raftGateway;
   }
 
   [HttpGet("EventualGet")]
-  public ActionResult<int?> EventualGet(string key)
+  public async Task<ActionResult<int?>> EventualGet(string key)
   {
-    var value = raftGateway.EventualGet(key);
+    var value = await raftGateway.EventualGetAsync(key);
     if (value.HasValue)
       return Ok(value.Value);
     else
@@ -28,9 +28,9 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpGet("StrongGet")]
-  public ActionResult<int?> StrongGet(string key)
+  public async Task<ActionResult<int?>> StrongGet(string key)
   {
-    var value = raftGateway.StrongGet(key);
+    var value = await raftGateway.StrongGetAsync(key);
     if (value.HasValue)
       return Ok(value.Value);
     else
@@ -38,16 +38,16 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpPost("CompareVersionAndSwap")]
-  public ActionResult<bool> CompareVersionAndSwap(string key, int expectedValue, int newValue)
+  public async Task<ActionResult<bool>> CompareVersionAndSwap(string key, int expectedValue, int newValue)
   {
-    var result = raftGateway.CompareVersionAndSwap(key, expectedValue, newValue);
+    var result = await raftGateway.CompareVersionAndSwapAsync(key, expectedValue, newValue);
     return Ok(result);
   }
 
   [HttpPost("Write")]
-  public ActionResult<bool> Write(string key, int value)
+  public async Task<ActionResult<bool>> Write(string key, int value)
   {
-    var result = raftGateway.Write(key, value);
+    var result = await raftGateway.WriteAsync(key, value);
     return Ok(result);
   }
 }

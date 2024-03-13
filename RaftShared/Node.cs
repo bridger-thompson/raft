@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace RaftShared;
 
-public class RaftNode
+public class Node
 {
   public Guid Id { get; private set; }
   public NodeState State { get; set; }
@@ -22,7 +22,7 @@ public class RaftNode
   public Dictionary<string, (int value, int logIndex)> DataLog = [];
 
 
-  public RaftNode(HttpClient httpClient, List<string> nodeUrls)
+  public Node(List<string> nodeUrls)
   {
     Id = Guid.NewGuid();
     State = NodeState.Follower;
@@ -32,7 +32,7 @@ public class RaftNode
 
     votesRecord[Id] = (CurrentTerm, null);
     ResetElectionTimeout();
-    this.httpClient = httpClient;
+    this.httpClient = new HttpClient();
   }
 
   private void ResetElectionTimeout()
@@ -128,10 +128,11 @@ public class RaftNode
     return false;
   }
 
-  public void Vote(int term, Guid id)
+  public bool Vote(int term, Guid id)
   {
     votesRecord[Id] = (term, id);
     Log($"Voted for node {id} for term {term}");
+    return true;
   }
 
   public void Follow()
@@ -183,6 +184,11 @@ public class RaftNode
     {
       Log($"Exception sending heartbeat to {nodeUrl}: {ex.Message}");
     }
+  }
+
+  public void Heartbeat(int term, Guid leaderId)
+  {
+    // something?
   }
 
   private void Log(string message)

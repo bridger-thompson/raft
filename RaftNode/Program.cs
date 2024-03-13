@@ -1,3 +1,4 @@
+using RaftShared;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -7,9 +8,11 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 
-var nodes = Environment.GetEnvironmentVariable("NODES")?.Split(',') ?? [];
-services.AddSingleton<RaftNode>(provider => new RaftNode(nodes));
-
+var nodes = Environment.GetEnvironmentVariable("NODES")?.Split(',')?.ToList() ?? [];
+builder.Services.AddSingleton<Node>(serviceProvider =>
+{
+    return new Node(nodes);
+});
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -20,8 +23,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-var nodes = System.Environment.GetEnvironmentVariable("NODES")?.Split(',') ?? new string[0];
 
 var summaries = new[]
 {
