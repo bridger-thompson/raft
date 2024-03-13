@@ -25,3 +25,9 @@ public class VoteResponse
 {
   public bool VoteGranted { get; set; }
 }
+
+public class WriteModel
+{
+  public string Key { get; set; }
+  public int Value { get; set; }
+}

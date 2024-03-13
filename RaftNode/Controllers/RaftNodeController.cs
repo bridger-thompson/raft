@@ -59,4 +59,56 @@ public class RaftNodeController : ControllerBase
       return StatusCode(500, "Internal server error while processing append entries request.");
     }
   }
+
+  [HttpGet("leader")]
+  public ActionResult<string> GetLeader()
+  {
+    var isLeader = raftNode.IsLeader();
+    Console.WriteLine($"Is Leader: {isLeader}");
+    return Ok(isLeader);
+  }
+
+  [HttpGet("eventualget")]
+  public ActionResult<(int? value, int logIndex)> EventualGet(string key)
+  {
+    var (value, logIndex) = raftNode.EventualGet(key);
+    Console.WriteLine($"Key {key} got value {value} {logIndex}");
+    if (value.HasValue)
+    {
+      return Ok(new { value = value.Value, logIndex });
+    }
+    return NotFound();
+  }
+
+  [HttpGet("strongget")]
+  public ActionResult<(int? value, int logIndex)> StrongGet(string key)
+  {
+    var (value, logIndex) = raftNode.StrongGet(key);
+    Console.WriteLine($"Key {key} got value {value} {logIndex}");
+    if (value.HasValue)
+    {
+      return Ok(new { value = value.Value, logIndex });
+    }
+    return BadRequest("Not the leader or key does not exist.");
+  }
+
+  [HttpPost("compareversionandswap")]
+  public ActionResult<bool> CompareVersionAndSwap([FromForm] string key, [FromForm] int expectedValue, [FromForm] int newValue, [FromForm] int expectedLogIndex)
+  {
+    var success = raftNode.CompareVersionAndSwap(key, expectedValue, newValue, expectedLogIndex);
+    return Ok(success);
+  }
+
+  [HttpPost("write")]
+  public ActionResult<bool> Write([FromBody] WriteModel model)
+  {
+    if (model == null) return BadRequest("Invalid request payload.");
+
+    var success = raftNode.Write(model.Key, model.Value);
+    if (success)
+    {
+      return Ok(true);
+    }
+    return BadRequest("Not the leader or operation failed.");
+  }
 }

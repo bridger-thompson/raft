@@ -10,7 +10,8 @@ services:
     ports:
       - 8501:8080
     environment:
-      - NODES="raft_node_2,raft_node_3"
+      # - NODES=http://raft_node_2:8080
+      - NODES=http://144.17.92.13:8502,http://144.17.92.12:8503
 
   raft_node_2:
     container_name: raft_node_2
@@ -21,7 +22,8 @@ services:
     ports:
       - 8502:8080
     environment:
-      - NODES="raft_node_1,raft_node_3"
+      # - NODES=http://raft_node_1:8080
+      - NODES=http://144.17.92.13:8501,http://144.17.92.12:8503
 
   raft_gateway:
     container_name: raft_gateway
@@ -32,7 +34,8 @@ services:
     ports:
       - 8500:8080
     environment:
-      - NODES="raft_node_1,raft_node_2,raft_node_3"
+      # - NODES=http://raft_node_1:8080,http://raft_node_2:8080
+      - NODES=http://144.17.92.13:8501,http://144.17.92.13:8502,http://144.17.92.12:8503
 
   raft-grafana:
     image: grafana/grafana:latest

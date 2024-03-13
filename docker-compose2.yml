@@ -10,4 +10,4 @@ services:
     ports:
       - 8503:8080
     environment:
-      - NODES="raft_node_1,raft_node_2"
+      - NODES=http://144.17.92.13:8501,http://144.17.92.13:8502

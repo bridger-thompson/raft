@@ -2,8 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+
+public class GetResponse
+{
+  public int Value { get; set; }
+  public int LogIndex { get; set; }
+}
 
 namespace RaftShared
 {
@@ -27,14 +34,16 @@ namespace RaftShared
       {
         try
         {
-          var response = await httpClient.GetAsync($"{url}/api/raftnode/leader");
+          var response = await httpClient.GetAsync($"{url}/RaftNode/leader");
+          Console.WriteLine($"Response from {url}: {response.StatusCode}");
           if (response.IsSuccessStatusCode)
           {
             var content = await response.Content.ReadAsStringAsync();
-            var leaderUrl = JsonSerializer.Deserialize<string>(content);
-            if (!string.IsNullOrEmpty(leaderUrl))
+            var isLeader = bool.Parse(content);
+            Console.WriteLine($"Is Leader: {isLeader}");
+            if (isLeader)
             {
-              return leaderUrl;
+              return url;
             }
           }
         }
@@ -43,19 +52,25 @@ namespace RaftShared
           logger.LogError(ex, $"Error finding leader from {url}");
         }
       }
+      logger.LogError($"Error finding leader");
       return null;
     }
 
-    public async Task<int?> EventualGetAsync(string key)
+    public async Task<(int? value, int logIndex)?> EventualGetAsync(string key)
     {
       var nodeUrl = nodeUrls[random.Next(nodeUrls.Count)];
       try
       {
-        var response = await httpClient.GetAsync($"{nodeUrl}/api/raftnode/eventualget?key={key}");
+        var response = await httpClient.GetAsync($"{nodeUrl}/RaftNode/eventualget?key={key}");
         if (response.IsSuccessStatusCode)
         {
           var content = await response.Content.ReadAsStringAsync();
-          return JsonSerializer.Deserialize<int?>(content);
+          var options = new JsonSerializerOptions
+          {
+            PropertyNameCaseInsensitive = true
+          };
+          var getResult = JsonSerializer.Deserialize<GetResponse>(content, options);
+          return (getResult.Value, getResult.LogIndex);
         }
       }
       catch (Exception ex)
@@ -65,18 +80,27 @@ namespace RaftShared
       return null;
     }
 
-    public async Task<int?> StrongGetAsync(string key)
+    public async Task<(int? value, int logIndex)?> StrongGetAsync(string key)
     {
       var leaderUrl = await FindLeaderAsync();
       if (leaderUrl != null)
       {
         try
         {
-          var response = await httpClient.GetAsync($"{leaderUrl}/api/raftnode/strongget?key={key}");
+          var response = await httpClient.GetAsync($"{leaderUrl}/RaftNode/strongget?key={key}");
           if (response.IsSuccessStatusCode)
           {
             var content = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<int?>(content);
+            var options = new JsonSerializerOptions
+            {
+              PropertyNameCaseInsensitive = true
+            };
+            var getResult = JsonSerializer.Deserialize<GetResponse>(content, options);
+            Console.WriteLine($"SG Results: {content} {getResult.Value}, {getResult.LogIndex}");
+            if (getResult != null)
+            {
+              return (getResult.Value, getResult.LogIndex);
+            }
           }
         }
         catch (Exception ex)
@@ -101,7 +125,7 @@ namespace RaftShared
               new KeyValuePair<string, string>("newValue", newValue.ToString())
           });
 
-          var response = await httpClient.PostAsync($"{leaderUrl}/api/raftnode/compareversionandswap", content);
+          var response = await httpClient.PostAsync($"{leaderUrl}/RaftNode/CompareVersionAndSwap", content);
           return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -119,13 +143,11 @@ namespace RaftShared
       {
         try
         {
-          var content = new FormUrlEncodedContent(new[]
-          {
-              new KeyValuePair<string, string>("key", key),
-              new KeyValuePair<string, string>("value", value.ToString()),
-          });
+          var payload = new WriteModel { Key = key, Value = value };
+          var json = JsonSerializer.Serialize(payload);
+          var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-          var response = await httpClient.PostAsync($"{leaderUrl}/api/raftnode/write", content);
+          var response = await httpClient.PostAsync($"{leaderUrl}/RaftNode/Write", content);
           return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -133,6 +155,7 @@ namespace RaftShared
           logger.LogError(ex, $"Error performing Write for key {key} on leader {leaderUrl}");
         }
       }
+      logger.LogError($"Error performing Write for key {key}. No leader found.");
       return false;
     }
   }

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Timers;
 
 namespace RaftShared;
 
@@ -20,6 +21,8 @@ public class Node
   public List<LogEntry> LogEntries { get; private set; } = [];
   public static Guid? MostRecentLeaderId { get; set; }
   public Dictionary<string, (int value, int logIndex)> DataLog = [];
+  private int lastLogIndex = 0;
+  private readonly System.Timers.Timer _actionTimer;
 
 
   public Node(List<string> nodeUrls)
@@ -33,6 +36,9 @@ public class Node
     votesRecord[Id] = (CurrentTerm, null);
     ResetElectionTimeout();
     this.httpClient = new HttpClient();
+    _actionTimer = new System.Timers.Timer(electionTimeout);
+    _actionTimer.Elapsed += Act;
+    _actionTimer.Start();
   }
 
   private void ResetElectionTimeout()
@@ -40,14 +46,7 @@ public class Node
     electionTimeout = random.Next(150, 300);
   }
 
-  public async Task Run()
-  {
-    Log($"Waiting for {electionTimeout}ms");
-    Thread.Sleep(electionTimeout);
-    await Act();
-  }
-
-  public async Task Act()
+  public async void Act(object? sender, ElapsedEventArgs e)
   {
     switch (State)
     {
@@ -148,8 +147,8 @@ public class Node
     var tasks = new List<Task>();
     foreach (var nodeUrl in nodeUrls)
     {
-      var entries = new List<LogEntry>();
-      tasks.Add(SendAppendEntriesAsync(nodeUrl, CurrentTerm, Id, entries));
+      var entriesToReplicate = LogEntries;
+      tasks.Add(SendAppendEntriesAsync(nodeUrl, CurrentTerm, Id, entriesToReplicate));
     }
 
     await Task.WhenAll(tasks);
@@ -172,7 +171,7 @@ public class Node
       var response = await httpClient.PostAsync($"{nodeUrl}/RaftNode/appendEntries", content);
       if (!response.IsSuccessStatusCode)
       {
-        Log($"Failed to send append entries to {nodeUrl}");
+        Log($"Failed to send append entries to {nodeUrl}. Code {response.StatusCode}");
       }
     }
     catch (Exception ex)
@@ -185,11 +184,11 @@ public class Node
   {
     string filename = $"{Id}.log";
     File.AppendAllText(filename, $"{DateTime.Now}: {message}\n");
+    // Console.WriteLine(message);
   }
 
-  public void AppendEntry(LogEntry entry)
+  public void RecordLog(LogEntry entry)
   {
-    LogEntries.Add(entry);
     DataLog[entry.Key] = (entry.Value, entry.LogIndex);
     Log($"Appended log entry: {entry.Key} = {entry.Value}");
   }
@@ -203,11 +202,61 @@ public class Node
       MostRecentLeaderId = leaderId;
       Log($"Follower. Received {entries.Count} AppendEntries from {leaderId} with term {term}");
 
+      LogEntries = entries;
       foreach (var entry in entries)
       {
-        AppendEntry(entry);
+        RecordLog(entry);
       }
       ResetElectionTimeout();
     }
+  }
+
+  public bool IsLeader() => State == NodeState.Leader;
+
+  public (int? value, int logIndex) EventualGet(string key)
+  {
+    if (DataLog.TryGetValue(key, out var data))
+    {
+      return (data.value, data.logIndex);
+    }
+    return (null, 0);
+  }
+
+  public (int? value, int logIndex) StrongGet(string key)
+  {
+    if (!IsLeader()) return (null, 0);
+
+    if (DataLog.TryGetValue(key, out var data))
+    {
+      return (data.value, data.logIndex);
+    }
+    return (null, 0);
+  }
+
+  public bool CompareVersionAndSwap(string key, int expectedValue, int newValue, int expectedLogIndex)
+  {
+    if (!IsLeader()) return false;
+
+    if (DataLog.TryGetValue(key, out var data) && data.value == expectedValue && data.logIndex == expectedLogIndex)
+    {
+      DataLog[key] = (newValue, ++lastLogIndex);
+      return true;
+    }
+    return false;
+  }
+
+  public bool Write(string key, int value)
+  {
+    if (!IsLeader()) return false;
+
+    if (DataLog.ContainsKey(key))
+    {
+      DataLog[key] = (value, DataLog[key].logIndex + 1);
+    }
+    else
+    {
+      DataLog.Add(key, (value, ++lastLogIndex));
+    }
+    return true;
   }
 }

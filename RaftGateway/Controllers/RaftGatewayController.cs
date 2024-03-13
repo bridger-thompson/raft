@@ -18,23 +18,33 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpGet("EventualGet")]
-  public async Task<ActionResult<int?>> EventualGet(string key)
+  public async Task<ActionResult> EventualGet(string key)
   {
-    var value = await raftGateway.EventualGetAsync(key);
-    if (value.HasValue)
-      return Ok(value.Value);
+    var result = await raftGateway.EventualGetAsync(key);
+    if (result.HasValue)
+    {
+      var (value, logIndex) = result.Value;
+      return Ok(new { value, logIndex });
+    }
     else
-      return NotFound();
+    {
+      return NotFound("No value found for the key.");
+    }
   }
 
   [HttpGet("StrongGet")]
-  public async Task<ActionResult<int?>> StrongGet(string key)
+  public async Task<ActionResult> StrongGet(string key)
   {
-    var value = await raftGateway.StrongGetAsync(key);
-    if (value.HasValue)
-      return Ok(value.Value);
+    var result = await raftGateway.StrongGetAsync(key);
+    if (result.HasValue)
+    {
+      var (value, logIndex) = result.Value;
+      return Ok(new { value, logIndex });
+    }
     else
-      return NotFound();
+    {
+      return NotFound("No value");
+    }
   }
 
   [HttpPost("CompareVersionAndSwap")]
