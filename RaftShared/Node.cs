@@ -143,26 +143,25 @@ public class Node
   public async Task SendHeartbeatAsync()
   {
     Log("Sending heartbeat as leader");
-
     if (State != NodeState.Leader) return;
 
     var tasks = new List<Task>();
     foreach (var nodeUrl in nodeUrls)
     {
-      tasks.Add(SendHeartbeatToNodeAsync(nodeUrl));
+      var entries = new List<LogEntry>();
+      tasks.Add(SendAppendEntriesAsync(nodeUrl, CurrentTerm, Id, entries));
     }
 
     await Task.WhenAll(tasks);
-
-    ResetElectionTimeout();
   }
 
-  private async Task SendHeartbeatToNodeAsync(string nodeUrl)
+  private async Task SendAppendEntriesAsync(string nodeUrl, int term, Guid leaderId, List<LogEntry> entries)
   {
-    var request = new HeartbeatRequest
+    var request = new AppendEntriesRequest
     {
-      Term = this.CurrentTerm,
-      LeaderId = this.Id
+      Term = term,
+      LeaderId = leaderId,
+      Entries = entries
     };
 
     var json = JsonSerializer.Serialize(request);
@@ -170,25 +169,16 @@ public class Node
 
     try
     {
-      var response = await httpClient.PostAsync($"{nodeUrl}/RaftNode/heartbeat", content);
-      if (response.IsSuccessStatusCode)
+      var response = await httpClient.PostAsync($"{nodeUrl}/RaftNode/appendEntries", content);
+      if (!response.IsSuccessStatusCode)
       {
-        Log($"Heartbeat successfully sent to {nodeUrl}");
-      }
-      else
-      {
-        Log($"Failed to send heartbeat to {nodeUrl}");
+        Log($"Failed to send append entries to {nodeUrl}");
       }
     }
     catch (Exception ex)
     {
-      Log($"Exception sending heartbeat to {nodeUrl}: {ex.Message}");
+      Log($"Exception sending append entries to {nodeUrl}: {ex.Message}");
     }
-  }
-
-  public void Heartbeat(int term, Guid leaderId)
-  {
-    // something?
   }
 
   private void Log(string message)

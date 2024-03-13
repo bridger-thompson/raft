@@ -59,20 +59,4 @@ public class RaftNodeController : ControllerBase
       return StatusCode(500, "Internal server error while processing append entries request.");
     }
   }
-
-  [HttpPost("heartbeat")]
-  public IActionResult Heartbeat([FromBody] HeartbeatRequest request)
-  {
-    try
-    {
-      raftNode.Heartbeat(request.Term, request.LeaderId);
-      return Ok(new { Success = true });
-    }
-    catch (Exception ex)
-    {
-      logger.LogError(ex, "Error receiving heartbeat");
-      return StatusCode(500, "Internal server error while processing heartbeat.");
-    }
-  }
-
 }
