@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+
 namespace RaftShared;
 
 public class RaftNode
@@ -6,11 +9,12 @@ public class RaftNode
   public NodeState State { get; set; }
   public int CurrentTerm { get; set; }
 
-  private static List<string> nodeUrls = [];
+  private List<string> nodeUrls;
   private int nodeCount;
   private readonly static Dictionary<Guid, (int, Guid?)> votesRecord = [];
 
   private readonly Random random = new();
+  private readonly HttpClient httpClient;
   private int electionTimeout;
 
   public List<LogEntry> LogEntries { get; private set; } = [];
@@ -18,16 +22,17 @@ public class RaftNode
   public Dictionary<string, (int value, int logIndex)> DataLog = [];
 
 
-  public RaftNode()
+  public RaftNode(HttpClient httpClient, List<string> nodeUrls)
   {
     Id = Guid.NewGuid();
     State = NodeState.Follower;
     CurrentTerm = 0;
-    nodeUrls = [];
+    this.nodeUrls = nodeUrls;
     nodeCount = nodeUrls.Count + 1;
 
     votesRecord[Id] = (CurrentTerm, null);
     ResetElectionTimeout();
+    this.httpClient = httpClient;
   }
 
   private void ResetElectionTimeout()
@@ -64,30 +69,63 @@ public class RaftNode
     CurrentTerm++;
     int voteCount = 1;
     votesRecord[Id] = (CurrentTerm, Id);
-    // get votes
-    foreach (var node in nodeUrls)
+
+    var voteTasks = new List<Task<bool>>();
+
+    foreach (var nodeUrl in nodeUrls)
     {
-      // if (node.Id != Id)
-      // {
-      //   if (node.CurrentTerm <= CurrentTerm &&
-      //     node.IsHealthy() &&
-      //     (!votesRecord[node.Id].Item2.HasValue || votesRecord[node.Id].Item1 < CurrentTerm)
-      //   )
-      //   {
-      //     node.Vote(CurrentTerm, Id);
-      //     voteCount++;
-      //     Log($"Received vote from {node.Id} for term {CurrentTerm}");
-      //   }
-      // }
+      voteTasks.Add(RequestVoteFromNode(nodeUrl, CurrentTerm, Id));
     }
-    if (voteCount > nodeCount / 2)
+
+    var voteResults = await Task.WhenAll(voteTasks);
+
+    foreach (var voteGranted in voteResults)
+    {
+      if (voteGranted)
+      {
+        voteCount++;
+      }
+    }
+
+    if (voteCount > nodeUrls.Count / 2)
     {
       State = NodeState.Leader;
+      MostRecentLeaderId = Id;
       Log("Became the leader");
       await SendHeartbeatAsync();
-      return;
     }
-    Log("Lost election. Still candidate.");
+    else
+    {
+      Log("Lost election. Still candidate.");
+    }
+  }
+
+  private async Task<bool> RequestVoteFromNode(string nodeUrl, int term, Guid candidateId)
+  {
+    var request = new VoteRequest
+    {
+      Term = term,
+      CandidateId = candidateId
+    };
+
+    var json = JsonSerializer.Serialize(request);
+    var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+    try
+    {
+      var response = await httpClient.PostAsync($"{nodeUrl}/RaftNode/vote", content);
+      if (response.IsSuccessStatusCode)
+      {
+        var responseString = await response.Content.ReadAsStringAsync();
+        var voteResponse = JsonSerializer.Deserialize<VoteResponse>(responseString); // Assuming a VoteResponse DTO
+        return voteResponse?.VoteGranted ?? false;
+      }
+    }
+    catch (Exception ex)
+    {
+      Log($"Failed to request vote from {nodeUrl}: {ex.Message}");
+    }
+    return false;
   }
 
   public void Vote(int term, Guid id)
@@ -105,40 +143,47 @@ public class RaftNode
   {
     Log("Sending heartbeat as leader");
 
-    var tasks = new List<Task<bool>>();
-    int majority = (nodeCount / 2) + 1;
-    int responses = 0;
+    if (State != NodeState.Leader) return;
 
-    // foreach (var node in nodeUrls.Where(n => n.Id != Id))
-    // {
-    //   tasks.Add(Task.Run(() =>
-    //   {
-    //     var entriesToReplicate = LogEntries.Where(e => !node.LogEntries.Select(le => le.LogIndex).Contains(e.LogIndex)).ToList();
-    //     node.ReceiveAppendEntries(CurrentTerm, Id, entriesToReplicate);
-    //     return true;
-    //   }));
-    // }
-
-    while (responses < majority && tasks.Count != 0)
+    var tasks = new List<Task>();
+    foreach (var nodeUrl in nodeUrls)
     {
-      var completedTask = await Task.WhenAny(tasks);
-      tasks.Remove(completedTask);
-
-      if (await completedTask)
-      {
-        responses++;
-      }
-
-      if (responses >= majority)
-      {
-        break;
-      }
+      tasks.Add(SendHeartbeatToNodeAsync(nodeUrl));
     }
 
+    await Task.WhenAll(tasks);
+
     ResetElectionTimeout();
-    Log($"Heartbeat acknowledged by majority of {responses} nodes.");
   }
 
+  private async Task SendHeartbeatToNodeAsync(string nodeUrl)
+  {
+    var request = new HeartbeatRequest
+    {
+      Term = this.CurrentTerm,
+      LeaderId = this.Id
+    };
+
+    var json = JsonSerializer.Serialize(request);
+    var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+    try
+    {
+      var response = await httpClient.PostAsync($"{nodeUrl}/RaftNode/heartbeat", content);
+      if (response.IsSuccessStatusCode)
+      {
+        Log($"Heartbeat successfully sent to {nodeUrl}");
+      }
+      else
+      {
+        Log($"Failed to send heartbeat to {nodeUrl}");
+      }
+    }
+    catch (Exception ex)
+    {
+      Log($"Exception sending heartbeat to {nodeUrl}: {ex.Message}");
+    }
+  }
 
   private void Log(string message)
   {

@@ -1,69 +1,139 @@
-namespace RaftShared;
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
-public class RaftGateway
+namespace RaftShared
 {
-  private readonly List<string> nodeUrls;
-  private readonly Random random = new();
-
-  public RaftGateway(List<string> nodeUrls)
+  public class RaftGateway
   {
-    this.nodeUrls = nodeUrls;
-  }
+    private readonly List<string> nodeUrls;
+    private readonly HttpClient httpClient;
+    private readonly ILogger<RaftGateway> logger;
+    private readonly Random random = new();
 
-  private RaftNode? FindLeader()
-  {
-    // var leader = nodes.FirstOrDefault(n => n.Id == RaftNode.MostRecentLeaderId);
-    // return leader;
-    return null;
-  }
-
-  public int? EventualGet(string key)
-  {
-    // var node = nodes[random.Next(nodes.Count)];
-    // return node.DataLog.TryGetValue(key, out var value) ? value.value : null;
-    return 0;
-  }
-
-  public int? StrongGet(string key)
-  {
-    var leader = FindLeader();
-    // if (leader != null && leader.State == NodeState.Leader)
-    // {
-    //   return leader.DataLog.TryGetValue(key, out var value) ? value.value : null;
-    // }
-    return null;
-  }
-
-  public bool CompareVersionAndSwap(string key, int expectedValue, int newValue)
-  {
-    var leader = FindLeader();
-    // if (leader != null && leader.DataLog.TryGetValue(key, out var value) && value.value == expectedValue)
-    // {
-    //   var newLogIndex = leader.LogEntries.Max(e => e.LogIndex) + 1;
-    //   leader.AppendEntry(new LogEntry { Key = key, Value = newValue, LogIndex = newLogIndex, Term = leader.CurrentTerm });
-    //   return true;
-    // }
-    return false;
-  }
-
-  public bool Write(string key, int value)
-  {
-    var leader = FindLeader();
-    if (leader != null)
+    public RaftGateway(List<string> nodeUrls, HttpClient httpClient, ILogger<RaftGateway> logger)
     {
-      // var newLogIndex = leader.LogEntries.Count != 0 ? leader.LogEntries.Max(e => e.LogIndex) + 1 : 0;
-      // var newLogEntry = new LogEntry
-      // {
-      //   LogIndex = newLogIndex,
-      //   Key = key,
-      //   Value = value,
-      //   Term = leader.CurrentTerm
-      // };
-
-      // leader.AppendEntry(newLogEntry);
-
-      return true;
+      this.nodeUrls = nodeUrls;
+      this.httpClient = httpClient;
+      this.logger = logger;
     }
-    return false;
+
+    private async Task<string?> FindLeaderAsync()
+    {
+      foreach (var url in nodeUrls)
+      {
+        try
+        {
+          var response = await httpClient.GetAsync($"{url}/api/raftnode/leader");
+          if (response.IsSuccessStatusCode)
+          {
+            var content = await response.Content.ReadAsStringAsync();
+            var leaderUrl = JsonSerializer.Deserialize<string>(content);
+            if (!string.IsNullOrEmpty(leaderUrl))
+            {
+              return leaderUrl;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          logger.LogError(ex, $"Error finding leader from {url}");
+        }
+      }
+      return null;
+    }
+
+    public async Task<int?> EventualGetAsync(string key)
+    {
+      var nodeUrl = nodeUrls[random.Next(nodeUrls.Count)];
+      try
+      {
+        var response = await httpClient.GetAsync($"{nodeUrl}/api/raftnode/eventualget?key={key}");
+        if (response.IsSuccessStatusCode)
+        {
+          var content = await response.Content.ReadAsStringAsync();
+          return JsonSerializer.Deserialize<int?>(content);
+        }
+      }
+      catch (Exception ex)
+      {
+        logger.LogError(ex, $"Error performing EventualGet for key {key} on {nodeUrl}");
+      }
+      return null;
+    }
+
+    public async Task<int?> StrongGetAsync(string key)
+    {
+      var leaderUrl = await FindLeaderAsync();
+      if (leaderUrl != null)
+      {
+        try
+        {
+          var response = await httpClient.GetAsync($"{leaderUrl}/api/raftnode/strongget?key={key}");
+          if (response.IsSuccessStatusCode)
+          {
+            var content = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<int?>(content);
+          }
+        }
+        catch (Exception ex)
+        {
+          logger.LogError(ex, $"Error performing StrongGet for key {key} on leader {leaderUrl}");
+        }
+      }
+      return null;
+    }
+
+    public async Task<bool> CompareVersionAndSwapAsync(string key, int expectedValue, int newValue)
+    {
+      var leaderUrl = await FindLeaderAsync();
+      if (leaderUrl != null)
+      {
+        try
+        {
+          var content = new FormUrlEncodedContent(new[]
+          {
+              new KeyValuePair<string, string>("key", key),
+              new KeyValuePair<string, string>("expectedValue", expectedValue.ToString()),
+              new KeyValuePair<string, string>("newValue", newValue.ToString())
+          });
+
+          var response = await httpClient.PostAsync($"{leaderUrl}/api/raftnode/compareversionandswap", content);
+          return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+          logger.LogError(ex, $"Error performing CompareVersionAndSwap for key {key} on leader {leaderUrl}");
+        }
+      }
+      return false;
+    }
+
+    public async Task<bool> WriteAsync(string key, int value)
+    {
+      var leaderUrl = await FindLeaderAsync();
+      if (leaderUrl != null)
+      {
+        try
+        {
+          var content = new FormUrlEncodedContent(new[]
+          {
+              new KeyValuePair<string, string>("key", key),
+              new KeyValuePair<string, string>("value", value.ToString()),
+          });
+
+          var response = await httpClient.PostAsync($"{leaderUrl}/api/raftnode/write", content);
+          return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+          logger.LogError(ex, $"Error performing Write for key {key} on leader {leaderUrl}");
+        }
+      }
+      return false;
+    }
   }
 }
