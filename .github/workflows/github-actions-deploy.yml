@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Build Docker images
         run: |
-          docker-compose -f docker-compose.yml build 
+          docker compose -f docker-compose.yml build 
 
   Build2:
     needs: Test
@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Build Docker images
         run: |
-          docker-compose -f docker-compose2.yml build 
+          docker compose -f docker-compose2.yml build 
 
   Deploy:
     needs: Build
@@ -45,8 +45,8 @@ jobs:
   
       - name: Deploy on machine
         run: |
-          docker-compose -f docker-compose.yml down
-          docker-compose -f docker-compose.yml up -d
+          docker compose -f docker-compose.yml down
+          docker compose -f docker-compose.yml up -d
 
   Deploy2:
     needs: Build2
@@ -57,7 +57,7 @@ jobs:
   
       - name: Deploy on machine
         run: |
-          docker-compose -f docker-compose2.yml down
-          docker-compose -f docker-compose2.yml up -d
+          docker compose -f docker-compose2.yml down
+          docker compose -f docker-compose2.yml up -d
           
   
