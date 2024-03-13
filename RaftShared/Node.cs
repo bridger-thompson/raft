@@ -116,7 +116,11 @@ public class Node
       if (response.IsSuccessStatusCode)
       {
         var responseString = await response.Content.ReadAsStringAsync();
-        var voteResponse = JsonSerializer.Deserialize<VoteResponse>(responseString); // Assuming a VoteResponse DTO
+        var options = new JsonSerializerOptions
+        {
+          PropertyNameCaseInsensitive = true
+        };
+        var voteResponse = JsonSerializer.Deserialize<VoteResponse>(responseString, options);
         return voteResponse?.VoteGranted ?? false;
       }
     }

@@ -1,0 +1,80 @@
+version: '3'
+
+services:
+  raft_node_1:
+    container_name: raft_node_1
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8501:8080
+    environment:
+      - NODES=http://raft_node_2:8080,http://raft_node_3:8080
+
+  raft_node_2:
+    container_name: raft_node_2
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8502:8080
+    environment:
+      - NODES=http://raft_node_1:8080,http://raft_node_3:8080
+
+  raft_node_3:
+    container_name: raft_node_3
+    image: raft_node
+    build:
+      context: .
+      dockerfile: RaftNode/Dockerfile
+    ports:
+      - 8503:8080
+    environment:
+      - NODES=http://raft_node_1:8080,http://raft_node_2:8080
+
+  raft_gateway:
+    container_name: raft_gateway
+    image: raft_gateway
+    build:
+      context: .
+      dockerfile: RaftGateway/Dockerfile
+    ports:
+      - 8500:8080
+    environment:
+      - NODES=http://raft_node_1:8080,http://raft_node_2:8080
+
+  raft-grafana:
+    image: grafana/grafana:latest
+    container_name: raft-grafana
+    user: 1000:1000
+    ports:
+      - 8499:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/grafana-datasource.yml
+
+  raft-loki:
+    image: grafana/loki:latest
+    container_name: raft-loki
+    ports:
+      - 8498:3100
+
+  raft-otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    container_name: raft-otel-collector
+    volumes:
+      - ./ops/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - 1889:1888 # pprof extension
+      - 13134:13133 # health_check extension
+      - 4316:4317 # OTLP gRPC receiver
+      - 4319:4318 # OTLP http receiver
+      - 55680:55679 # zpages extension
+
+volumes:
+  grafana_data:
