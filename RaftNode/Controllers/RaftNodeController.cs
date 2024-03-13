@@ -50,8 +50,9 @@ public class RaftNodeController : ControllerBase
   {
     try
     {
-      raftNode.ReceiveAppendEntries(request.Term, request.LeaderId, request.Entries);
-      return Ok(new { Success = true });
+      Console.WriteLine($"Appending Entries: {request.Entries.Count}");
+      int lastLogIndexAppended = raftNode.ReceiveAppendEntries(request.Term, request.LeaderId, request.Entries);
+      return Ok(lastLogIndexAppended);
     }
     catch (Exception ex)
     {

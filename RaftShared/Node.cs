@@ -23,7 +23,7 @@ public class Node
   public Dictionary<string, (int value, int logIndex)> DataLog = [];
   private int lastLogIndex = 0;
   private readonly System.Timers.Timer _actionTimer;
-
+  private Dictionary<string, int> lastReplicatedLogIndexPerNode = [];
 
   public Node(List<string> nodeUrls)
   {
@@ -151,7 +151,13 @@ public class Node
     var tasks = new List<Task>();
     foreach (var nodeUrl in nodeUrls)
     {
-      var entriesToReplicate = LogEntries;
+      if (!lastReplicatedLogIndexPerNode.ContainsKey(nodeUrl))
+      {
+        lastReplicatedLogIndexPerNode[nodeUrl] = 0;
+      }
+
+      var lastReplicatedIndex = lastReplicatedLogIndexPerNode[nodeUrl];
+      var entriesToReplicate = LogEntries.Where(e => e.LogIndex > lastReplicatedIndex).ToList();
       tasks.Add(SendAppendEntriesAsync(nodeUrl, CurrentTerm, Id, entriesToReplicate));
     }
 
@@ -166,6 +172,7 @@ public class Node
       LeaderId = leaderId,
       Entries = entries
     };
+    Console.WriteLine($"Entries: {entries.Count}");
 
     var json = JsonSerializer.Serialize(request);
     var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -173,9 +180,22 @@ public class Node
     try
     {
       var response = await httpClient.PostAsync($"{nodeUrl}/RaftNode/appendEntries", content);
-      if (!response.IsSuccessStatusCode)
+      if (response.IsSuccessStatusCode)
       {
-        Log($"Failed to send append entries to {nodeUrl}. Code {response.StatusCode}");
+        var responseString = await response.Content.ReadAsStringAsync();
+        try
+        {
+          int lastLogIndexAppended = JsonSerializer.Deserialize<int>(responseString);
+          lastReplicatedLogIndexPerNode[nodeUrl] = lastLogIndexAppended;
+        }
+        catch (JsonException ex)
+        {
+          Console.WriteLine($"Failed to deserialize the response for {nodeUrl}: {ex.Message}");
+        }
+      }
+      else
+      {
+        Console.WriteLine($"AppendEntries request to {nodeUrl} failed with status code {response.StatusCode}.");
       }
     }
     catch (Exception ex)
@@ -193,27 +213,34 @@ public class Node
 
   public void RecordLog(LogEntry entry)
   {
+    lastLogIndex = Math.Max(lastLogIndex + 1, entry.LogIndex);
+    LogEntries.Add(entry);
     DataLog[entry.Key] = (entry.Value, entry.LogIndex);
-    Log($"Appended log entry: {entry.Key} = {entry.Value}");
+
+    Log($"New log entry appended: Key={entry.Key}, Value={entry.Value}, LogIndex={entry.LogIndex}, Term={entry.Term}");
   }
 
-  public void ReceiveAppendEntries(int term, Guid leaderId, List<LogEntry> entries)
+  public int ReceiveAppendEntries(int term, Guid leaderId, List<LogEntry> entries)
   {
-    if (term >= CurrentTerm)
+    if (term < CurrentTerm)
     {
-      State = NodeState.Follower;
-      CurrentTerm = term;
-      MostRecentLeaderId = leaderId;
-      Log($"Follower. Received {entries.Count} AppendEntries from {leaderId} with term {term}");
-
-      LogEntries = entries;
-      foreach (var entry in entries)
-      {
-        RecordLog(entry);
-      }
-      ResetElectionTimeout();
+      Log("Received append entries with an older term. Ignoring.");
+      return lastLogIndex;
     }
+
+    State = NodeState.Follower;
+    CurrentTerm = term;
+    MostRecentLeaderId = leaderId;
+    Log($"Follower. Received {entries.Count} AppendEntries from {leaderId} with term {term}");
+
+    foreach (var entry in entries)
+    {
+      RecordLog(entry);
+    }
+    ResetElectionTimeout();
+    return lastLogIndex;
   }
+
 
   public bool IsLeader() => State == NodeState.Leader;
 
@@ -243,6 +270,17 @@ public class Node
 
     if (DataLog.TryGetValue(key, out var data) && data.value == expectedValue && data.logIndex == expectedLogIndex)
     {
+      lastLogIndex++;
+
+      var newEntry = new LogEntry
+      {
+        LogIndex = lastLogIndex,
+        Key = key,
+        Value = newValue,
+        Term = CurrentTerm
+      };
+
+      LogEntries.Add(newEntry);
       DataLog[key] = (newValue, ++lastLogIndex);
       return true;
     }
@@ -252,6 +290,18 @@ public class Node
   public bool Write(string key, int value)
   {
     if (!IsLeader()) return false;
+
+    lastLogIndex++;
+
+    var newEntry = new LogEntry
+    {
+      LogIndex = lastLogIndex,
+      Key = key,
+      Value = value,
+      Term = CurrentTerm
+    };
+
+    LogEntries.Add(newEntry);
 
     if (DataLog.ContainsKey(key))
     {

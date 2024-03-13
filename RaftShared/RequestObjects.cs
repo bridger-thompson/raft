@@ -31,3 +31,8 @@ public class WriteModel
   public string Key { get; set; }
   public int Value { get; set; }
 }
+
+public class AppendEntriesResponse
+{
+  public int LastLogIndexAppended { get; set; }
+}
