@@ -43,7 +43,7 @@ public class Node
 
   private void ResetElectionTimeout()
   {
-    electionTimeout = random.Next(150, 300);
+    electionTimeout = random.Next(500, 1000);
   }
 
   public async void Act(object? sender, ElapsedEventArgs e)
