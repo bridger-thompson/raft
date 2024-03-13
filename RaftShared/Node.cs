@@ -184,7 +184,7 @@ public class Node
   {
     string filename = $"{Id}.log";
     File.AppendAllText(filename, $"{DateTime.Now}: {message}\n");
-    // Console.WriteLine(message);
+    Console.WriteLine(message);
   }
 
   public void RecordLog(LogEntry entry)
