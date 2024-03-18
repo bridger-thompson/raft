@@ -8,7 +8,7 @@
   <div class="card-body">
     <h5 class="card-title">@Product.Name</h5>
     <p class="card-text">Cost: @Product.Cost</p>
-    <p class="card-text">Quantity: @DeserializeQuantity()</p>
+    <p class="card-text">Quantity: @(Product.Quantity == null ? "N/A" : Product.Quantity)</p>
     <button class="btn btn-primary" @onclick="IncreaseQuantity">Increase</button>
     <button class="btn btn-secondary" @onclick="DecreaseQuantity">Decrease</button>
   </div>
@@ -33,7 +33,14 @@
   private async Task LoadQuantity()
   {
     var result = await service.StrongGet(GetKey());
-    Product.QuantityData = result;
+    if (result.LogIndex == -1)
+    {
+      Product.Quantity = null;
+    }
+    else
+    {
+      Product.Quantity = converter.JsonToQuantity(result.Value);
+    }
     StateHasChanged();
   }
 
@@ -45,12 +52,4 @@
   {
   }
 
-  private string DeserializeQuantity()
-  {
-    if (Product.QuantityData is null || Product.QuantityData.LogIndex == -1)
-    {
-      return "N/A";
-    }
-    return converter.JsonToQuantity(Product.QuantityData.Value).ToString();
-  }
 }
