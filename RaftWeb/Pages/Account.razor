@@ -1,4 +1,6 @@
-﻿@page "/"
+﻿@using RaftWeb.Services;
+@inject RaftService service;
+@page "/"
 
 <PageTitle>Account Dashboard</PageTitle>
 
@@ -59,9 +61,10 @@
   private decimal depositAmount;
   private decimal withdrawAmount;
 
-  private void LoadBalance()
+  private async Task LoadBalance()
   {
-    userBalance = 100.00m; // Simulated balance loading
+    var result = await service.StrongGet($"balance-{username}");
+    userBalance = result.Value;
   }
 
   private void HandleDeposit()

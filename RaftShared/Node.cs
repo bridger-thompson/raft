@@ -20,7 +20,7 @@ public class Node
 
   public List<LogEntry> LogEntries { get; private set; } = [];
   public static Guid? MostRecentLeaderId { get; set; }
-  public Dictionary<string, (int value, int logIndex)> DataLog = [];
+  public Dictionary<string, Data> DataLog = [];
   private int lastLogIndex = 0;
   private readonly System.Timers.Timer _actionTimer;
   private Dictionary<string, int> lastReplicatedLogIndexPerNode = [];
@@ -215,7 +215,7 @@ public class Node
   {
     lastLogIndex = Math.Max(lastLogIndex + 1, entry.LogIndex);
     LogEntries.Add(entry);
-    DataLog[entry.Key] = (entry.Value, entry.LogIndex);
+    DataLog[entry.Key] = new Data() { Value = entry.Value, LogIndex = entry.LogIndex };
 
     Log($"New log entry appended: Key={entry.Key}, Value={entry.Value}, LogIndex={entry.LogIndex}, Term={entry.Term}");
   }
@@ -244,50 +244,45 @@ public class Node
 
   public bool IsLeader() => State == NodeState.Leader;
 
-  public (int? value, int logIndex) EventualGet(string key)
+  public Data EventualGet(string key)
   {
     if (DataLog.TryGetValue(key, out var data))
     {
-      return (data.value, data.logIndex);
+      return new Data { Value = data.Value, LogIndex = data.LogIndex };
     }
-    return (null, 0);
+    return new Data { Value = "", LogIndex = -1 };
   }
 
-  public (int? value, int logIndex) StrongGet(string key)
+  public Data StrongGet(string key)
   {
-    if (!IsLeader()) return (null, 0);
+    if (!IsLeader()) return new Data { Value = "", LogIndex = -1 };
 
     if (DataLog.TryGetValue(key, out var data))
     {
-      return (data.value, data.logIndex);
+      return new Data { Value = data.Value, LogIndex = data.LogIndex };
     }
-    return (null, 0);
+    return new Data { Value = "", LogIndex = -1 };
   }
 
-  public bool CompareVersionAndSwap(string key, int expectedValue, int newValue, int expectedLogIndex)
+  public bool CompareVersionAndSwap(string key, string expectedValue, string newValue, int expectedLogIndex)
   {
     if (!IsLeader()) return false;
 
-    if (DataLog.TryGetValue(key, out var data) && data.value == expectedValue && data.logIndex == expectedLogIndex)
+    if (DataLog.TryGetValue(key, out var data))
     {
-      lastLogIndex++;
-
-      var newEntry = new LogEntry
+      if (data.Value == expectedValue && data.LogIndex == expectedLogIndex)
       {
-        LogIndex = lastLogIndex,
-        Key = key,
-        Value = newValue,
-        Term = CurrentTerm
-      };
-
-      LogEntries.Add(newEntry);
-      DataLog[key] = (newValue, ++lastLogIndex);
-      return true;
+        return Write(key, newValue);
+      }
+      return false;
     }
-    return false;
+    else
+    {
+      return Write(key, newValue);
+    }
   }
 
-  public bool Write(string key, int value)
+  public bool Write(string key, string value)
   {
     if (!IsLeader()) return false;
 
@@ -305,11 +300,11 @@ public class Node
 
     if (DataLog.ContainsKey(key))
     {
-      DataLog[key] = (value, DataLog[key].logIndex + 1);
+      DataLog[key] = new Data() { Value = value, LogIndex = DataLog[key].LogIndex + 1 };
     }
     else
     {
-      DataLog.Add(key, (value, ++lastLogIndex));
+      DataLog.Add(key, new Data() { Value = value, LogIndex = lastLogIndex });
     }
     return true;
   }

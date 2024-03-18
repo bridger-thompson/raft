@@ -70,38 +70,30 @@ public class RaftNodeController : ControllerBase
   }
 
   [HttpGet("eventualget")]
-  public ActionResult<(int? value, int logIndex)> EventualGet(string key)
+  public ActionResult<Data> EventualGet(string key)
   {
-    var (value, logIndex) = raftNode.EventualGet(key);
+    var Data = raftNode.EventualGet(key);
     Console.WriteLine($"Key {key} got value {value} {logIndex}");
-    if (value.HasValue)
-    {
-      return Ok(new { value = value.Value, logIndex });
-    }
-    return NotFound();
+    return Data;
   }
 
   [HttpGet("strongget")]
-  public ActionResult<(int? value, int logIndex)> StrongGet(string key)
+  public ActionResult<Data> StrongGet(string key)
   {
-    var (value, logIndex) = raftNode.StrongGet(key);
+    var Data = raftNode.StrongGet(key);
     Console.WriteLine($"Key {key} got value {value} {logIndex}");
-    if (value.HasValue)
-    {
-      return Ok(new { value = value.Value, logIndex });
-    }
-    return BadRequest("Not the leader or key does not exist.");
+    return Data;
   }
 
   [HttpPost("compareversionandswap")]
-  public ActionResult<bool> CompareVersionAndSwap([FromForm] string key, [FromForm] int expectedValue, [FromForm] int newValue, [FromForm] int expectedLogIndex)
+  public ActionResult<bool> CompareVersionAndSwap([FromForm] string key, [FromForm] string expectedValue, [FromForm] string newValue, [FromForm] int expectedLogIndex)
   {
     var success = raftNode.CompareVersionAndSwap(key, expectedValue, newValue, expectedLogIndex);
     return Ok(success);
   }
 
   [HttpPost("write")]
-  public ActionResult<bool> Write([FromBody] WriteModel model)
+  public ActionResult<bool> Write([FromBody] Data model)
   {
     if (model == null) return BadRequest("Invalid request payload.");
 

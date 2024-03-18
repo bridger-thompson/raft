@@ -6,12 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-public class GetResponse
-{
-  public int Value { get; set; }
-  public int LogIndex { get; set; }
-}
-
 namespace RaftShared
 {
   public class Gateway
@@ -56,7 +50,7 @@ namespace RaftShared
       return null;
     }
 
-    public async Task<(int? value, int logIndex)?> EventualGetAsync(string key)
+    public async Task<Data?> EventualGetAsync(string key)
     {
       var nodeUrl = nodeUrls[random.Next(nodeUrls.Count)];
       try
@@ -69,8 +63,8 @@ namespace RaftShared
           {
             PropertyNameCaseInsensitive = true
           };
-          var getResult = JsonSerializer.Deserialize<GetResponse>(content, options);
-          return (getResult.Value, getResult.LogIndex);
+          var getResult = JsonSerializer.Deserialize<Data>(content, options);
+          return getResult;
         }
       }
       catch (Exception ex)
@@ -80,7 +74,7 @@ namespace RaftShared
       return null;
     }
 
-    public async Task<(int? value, int logIndex)?> StrongGetAsync(string key)
+    public async Task<Data?> StrongGetAsync(string key)
     {
       var leaderUrl = await FindLeaderAsync();
       if (leaderUrl != null)
@@ -95,11 +89,11 @@ namespace RaftShared
             {
               PropertyNameCaseInsensitive = true
             };
-            var getResult = JsonSerializer.Deserialize<GetResponse>(content, options);
+            var getResult = JsonSerializer.Deserialize<Data>(content, options);
             Console.WriteLine($"SG Results: {content} {getResult.Value}, {getResult.LogIndex}");
             if (getResult != null)
             {
-              return (getResult.Value, getResult.LogIndex);
+              return getResult;
             }
           }
         }
@@ -111,7 +105,7 @@ namespace RaftShared
       return null;
     }
 
-    public async Task<bool> CompareVersionAndSwapAsync(string key, int expectedValue, int newValue)
+    public async Task<bool> CompareVersionAndSwapAsync(string key, int expectedValue, int newValue, int expectedLogIndex)
     {
       var leaderUrl = await FindLeaderAsync();
       if (leaderUrl != null)
@@ -122,7 +116,8 @@ namespace RaftShared
           {
               new KeyValuePair<string, string>("key", key),
               new KeyValuePair<string, string>("expectedValue", expectedValue.ToString()),
-              new KeyValuePair<string, string>("newValue", newValue.ToString())
+              new KeyValuePair<string, string>("newValue", newValue.ToString()),
+              new KeyValuePair<string, string>("expectedLogIndex", expectedLogIndex.ToString())
           });
 
           var response = await httpClient.PostAsync($"{leaderUrl}/RaftNode/CompareVersionAndSwap", content);

@@ -18,13 +18,12 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpGet("EventualGet")]
-  public async Task<ActionResult> EventualGet(string key)
+  public async Task<ActionResult<Data>> EventualGet(string key)
   {
     var result = await raftGateway.EventualGetAsync(key);
     if (result.HasValue)
     {
-      var (value, logIndex) = result.Value;
-      return Ok(new { value, logIndex });
+      return Ok(result.Value);
     }
     else
     {
@@ -33,24 +32,23 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpGet("StrongGet")]
-  public async Task<ActionResult> StrongGet(string key)
+  public async Task<ActionResult<Data>> StrongGet(string key)
   {
     var result = await raftGateway.StrongGetAsync(key);
     if (result.HasValue)
     {
-      var (value, logIndex) = result.Value;
-      return Ok(new { value, logIndex });
+      return Ok(result.Value);
     }
     else
     {
-      return NotFound("No value");
+      return NotFound("No value found for the key.");
     }
   }
 
   [HttpPost("CompareVersionAndSwap")]
-  public async Task<ActionResult<bool>> CompareVersionAndSwap(string key, int expectedValue, int newValue)
+  public async Task<ActionResult<bool>> CompareVersionAndSwap(string key, int expectedValue, int newValue, int expectedLogIndex)
   {
-    var result = await raftGateway.CompareVersionAndSwapAsync(key, expectedValue, newValue);
+    var result = await raftGateway.CompareVersionAndSwapAsync(key, expectedValue, newValue, expectedLogIndex);
     return Ok(result);
   }
 
