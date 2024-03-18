@@ -14,5 +14,6 @@ var baseAddress = builder.HostEnvironment.IsDevelopment() || builder.HostEnviron
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(baseAddress) });
 builder.Services.AddScoped<RaftService>();
 builder.Services.AddScoped<BalanceConverter>();
+builder.Services.AddScoped<QuantityConverter>();
 
 await builder.Build().RunAsync();

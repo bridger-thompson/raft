@@ -1,4 +1,7 @@
-﻿@using RaftShared;
+﻿@using RaftWeb.Services;
+@using RaftShared;
+@using RaftWeb.Pages;
+@inject RaftService service;
 @page "/products"
 
 <PageTitle>Product Management</PageTitle>
@@ -9,38 +12,18 @@
 {
     foreach (var product in products)
     {
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">@product.Name</h5>
-                <p class="card-text">Cost: @product.Cost</p>
-                <p class="card-text">Quantity: @product.Quantity</p>
-                <button class="btn btn-primary" @onclick="() => IncreaseQuantity(product)">Increase</button>
-                <button class="btn btn-secondary" @onclick="() => DecreaseQuantity(product)">Decrease</button>
-            </div>
-        </div>
+        <ProductItem Product="product" />
     }
 }
 
 @code {
+    private string stockKey = "stock-of-";
     private List<Product> products = new List<Product>
 {
-new Product { Name = "Product 1", Cost = 1.00m, Quantity = 5 },
-new Product { Name = "Product 2", Cost = 1.00m, Quantity = 3 },
-new Product { Name = "Product 3", Cost = 1.00m, Quantity = 2 },
-new Product { Name = "Product 4", Cost = 1.00m, Quantity = 8 },
-new Product { Name = "Product 5", Cost = 1.00m, Quantity = 1 }
+new Product { Name = "Product 1", Cost = 1.00m },
+new Product { Name = "Product 2", Cost = 1.00m },
+new Product { Name = "Product 3", Cost = 1.00m },
+new Product { Name = "Product 4", Cost = 1.00m },
+new Product { Name = "Product 5", Cost = 1.00m }
 };
-
-    private void IncreaseQuantity(Product product)
-    {
-        product.Quantity++;
-    }
-
-    private void DecreaseQuantity(Product product)
-    {
-        if (product.Quantity > 0)
-        {
-            product.Quantity--;
-        }
-    }
 }

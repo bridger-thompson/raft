@@ -1,0 +1,56 @@
+@using RaftShared;
+@using RaftWeb.Services;
+@inject RaftService service;
+@inject QuantityConverter converter;
+@namespace RaftWeb.Pages
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">@Product.Name</h5>
+    <p class="card-text">Cost: @Product.Cost</p>
+    <p class="card-text">Quantity: @DeserializeQuantity()</p>
+    <button class="btn btn-primary" @onclick="IncreaseQuantity">Increase</button>
+    <button class="btn btn-secondary" @onclick="DecreaseQuantity">Decrease</button>
+  </div>
+</div>
+
+@code {
+  [Parameter]
+  public Product Product { get; set; }
+
+  private string stockKey = "stock-of-";
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadQuantity();
+  }
+
+  private string GetKey()
+  {
+    return stockKey + Product.Name.Replace(' ', '-');
+  }
+
+  private async Task LoadQuantity()
+  {
+    var result = await service.StrongGet(GetKey());
+    Product.QuantityData = result;
+    StateHasChanged();
+  }
+
+  private void IncreaseQuantity()
+  {
+  }
+
+  private void DecreaseQuantity()
+  {
+  }
+
+  private string DeserializeQuantity()
+  {
+    if (Product.QuantityData is null || Product.QuantityData.LogIndex == -1)
+    {
+      return "N/A";
+    }
+    return converter.JsonToQuantity(Product.QuantityData.Value).ToString();
+  }
+}
