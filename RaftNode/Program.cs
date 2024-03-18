@@ -8,6 +8,14 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader());
+});
+
 var nodes = Environment.GetEnvironmentVariable("NODES")?.Split(',')?.ToList() ?? [];
 var node = new Node(nodes);
 builder.Services.AddSingleton<Node>(serviceProvider =>
