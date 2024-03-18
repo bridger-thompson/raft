@@ -72,17 +72,17 @@ public class RaftNodeController : ControllerBase
   [HttpGet("eventualget")]
   public ActionResult<Data> EventualGet(string key)
   {
-    var Data = raftNode.EventualGet(key);
-    Console.WriteLine($"Key {key} got value {value} {logIndex}");
-    return Data;
+    var data = raftNode.EventualGet(key);
+    Console.WriteLine($"Key {key} got value {data.Value} {data.LogIndex}");
+    return data;
   }
 
   [HttpGet("strongget")]
   public ActionResult<Data> StrongGet(string key)
   {
-    var Data = raftNode.StrongGet(key);
-    Console.WriteLine($"Key {key} got value {value} {logIndex}");
-    return Data;
+    var data = raftNode.StrongGet(key);
+    Console.WriteLine($"Key {key} got value {data.Value} {data.LogIndex}");
+    return data;
   }
 
   [HttpPost("compareversionandswap")]
@@ -93,7 +93,7 @@ public class RaftNodeController : ControllerBase
   }
 
   [HttpPost("write")]
-  public ActionResult<bool> Write([FromBody] Data model)
+  public ActionResult<bool> Write([FromBody] WriteModel model)
   {
     if (model == null) return BadRequest("Invalid request payload.");
 

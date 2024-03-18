@@ -131,7 +131,7 @@ namespace RaftShared
       return false;
     }
 
-    public async Task<bool> WriteAsync(string key, int value)
+    public async Task<bool> WriteAsync(string key, string value)
     {
       var leaderUrl = await FindLeaderAsync();
       if (leaderUrl != null)

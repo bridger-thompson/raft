@@ -11,6 +11,6 @@ public class RaftService(HttpClient httpClient)
   public async Task<Data> StrongGet(string key)
   {
     var results = await _httpClient.GetFromJsonAsync<Data>($"/RaftGateway?key={key}");
-    return results is not null ? results : new Data() { Value = -1, LogIndex = -1 };
+    return results is not null ? results : new Data() { Value = "", LogIndex = -1 };
   }
 }

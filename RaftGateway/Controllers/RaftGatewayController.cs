@@ -21,9 +21,9 @@ public class RaftGatewayController : ControllerBase
   public async Task<ActionResult<Data>> EventualGet(string key)
   {
     var result = await raftGateway.EventualGetAsync(key);
-    if (result.HasValue)
+    if (result is not null)
     {
-      return Ok(result.Value);
+      return Ok(result);
     }
     else
     {
@@ -35,9 +35,9 @@ public class RaftGatewayController : ControllerBase
   public async Task<ActionResult<Data>> StrongGet(string key)
   {
     var result = await raftGateway.StrongGetAsync(key);
-    if (result.HasValue)
+    if (result is not null)
     {
-      return Ok(result.Value);
+      return Ok(result);
     }
     else
     {
@@ -53,7 +53,7 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpPost("Write")]
-  public async Task<ActionResult<bool>> Write(string key, int value)
+  public async Task<ActionResult<bool>> Write(string key, string value)
   {
     var result = await raftGateway.WriteAsync(key, value);
     return Ok(result);
