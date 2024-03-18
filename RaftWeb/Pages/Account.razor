@@ -1,0 +1,84 @@
+﻿@page "/"
+
+<PageTitle>Account Dashboard</PageTitle>
+
+<h1>Hello, User!</h1>
+
+<EditForm Model="@this" class="g-2" OnValidSubmit="LoadBalance">
+  <label for="username" class="form-label">Username:</label>
+  <div class="row">
+    <div class="col">
+      <InputText id="username" class="form-control" @bind-Value="username" />
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary">View Balance</button>
+    </div>
+  </div>
+</EditForm>
+
+@if (userBalance != null)
+{
+  <p class="mt-4">Your balance is: @($"${userBalance:0.00}")</p>
+
+  <div class="row g-2">
+    <div class="col-md-4">
+      <EditForm Model="@this" OnValidSubmit="HandleDeposit">
+        <label for="depositAmount" class="form-label">Deposit Amount:</label>
+        <div class="row">
+          <div class="col">
+            <InputNumber id="depositAmount" class="form-control" @bind-Value="depositAmount" min="0.00" />
+            <ValidationMessage For="@(() => depositAmount)" />
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-success">Deposit</button>
+          </div>
+        </div>
+      </EditForm>
+    </div>
+
+    <div class="col-md-4 offset-md-2">
+      <EditForm Model="@this" OnValidSubmit="HandleWithdrawal">
+        <label for="withdrawalAmount" class="form-label">Withdrawal Amount:</label>
+        <div class="row">
+          <div class="col">
+            <InputNumber id="withdrawalAmount" class="form-control" @bind-Value="withdrawAmount" min="0.00" />
+            <ValidationMessage For="@(() => withdrawAmount)" />
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-danger">Withdraw</button>
+          </div>
+        </div>
+      </EditForm>
+    </div>
+  </div>
+}
+
+@code {
+  private string username;
+  private decimal? userBalance;
+  private decimal depositAmount;
+  private decimal withdrawAmount;
+
+  private void LoadBalance()
+  {
+    userBalance = 100.00m; // Simulated balance loading
+  }
+
+  private void HandleDeposit()
+  {
+    if (depositAmount > 0)
+    {
+      userBalance += depositAmount;
+      depositAmount = 0; // Reset depositAmount after deposit
+    }
+  }
+
+  private void HandleWithdrawal()
+  {
+    if (withdrawAmount > 0 && (userBalance ?? 0) >= withdrawAmount)
+    {
+      userBalance -= withdrawAmount;
+      withdrawAmount = 0; // Reset withdrawAmount after withdrawal
+    }
+  }
+}
