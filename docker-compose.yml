@@ -1,6 +1,14 @@
 version: '3'
 
 services:
+  raft_web:
+    container_name: raft_web
+    build:
+      context: .
+      dockerfile: RaftWeb/Dockerfile
+    ports:
+      - 8080:80
+
   raft_node_1:
     container_name: raft_node_1
     image: raft_node
@@ -10,7 +18,6 @@ services:
     ports:
       - 8501:8080
     environment:
-      # - NODES=http://raft_node_2:8080
       - NODES=http://144.17.92.13:8502,http://144.17.92.12:8503
 
   raft_node_2:
@@ -22,7 +29,6 @@ services:
     ports:
       - 8502:8080
     environment:
-      # - NODES=http://raft_node_1:8080
       - NODES=http://144.17.92.13:8501,http://144.17.92.12:8503
 
   raft_gateway:
@@ -34,7 +40,6 @@ services:
     ports:
       - 8500:8080
     environment:
-      # - NODES=http://raft_node_1:8080,http://raft_node_2:8080
       - NODES=http://144.17.92.13:8501,http://144.17.92.13:8502,http://144.17.92.12:8503
 
   raft-grafana:
