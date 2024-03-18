@@ -46,7 +46,7 @@ public class RaftGatewayController : ControllerBase
   }
 
   [HttpPost("CompareVersionAndSwap")]
-  public async Task<ActionResult<bool>> CompareVersionAndSwap(string key, int expectedValue, int newValue, int expectedLogIndex)
+  public async Task<ActionResult<bool>> CompareVersionAndSwap(string key, string expectedValue, string newValue, int expectedLogIndex)
   {
     var result = await raftGateway.CompareVersionAndSwapAsync(key, expectedValue, newValue, expectedLogIndex);
     return Ok(result);

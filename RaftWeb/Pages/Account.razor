@@ -1,5 +1,7 @@
 ﻿@using RaftWeb.Services;
+@using RaftShared;
 @inject RaftService service;
+@inject BalanceConverter converter;
 @page "/"
 
 <PageTitle>Account Dashboard</PageTitle>
@@ -18,12 +20,12 @@
   </div>
 </EditForm>
 
-@if (userBalance != null)
+@if (username is not null)
 {
-  <p class="mt-4">Your balance is: @($"${userBalance:0.00}")</p>
+  <p class="mt-4">Your balance is: @((userBalance == null) ? "N/A" : $"${userBalance:0.00}")</p>
 
   <div class="row g-2">
-    <div class="col-md-4">
+    <div class="col-md-5 col-lg-4">
       <EditForm Model="@this" OnValidSubmit="HandleDeposit">
         <label for="depositAmount" class="form-label">Deposit Amount:</label>
         <div class="row">
@@ -38,7 +40,7 @@
       </EditForm>
     </div>
 
-    <div class="col-md-4 offset-md-2">
+    <div class="col-md-5 col-lg-4 offset-lg-2 offset-md-1">
       <EditForm Model="@this" OnValidSubmit="HandleWithdrawal">
         <label for="withdrawalAmount" class="form-label">Withdrawal Amount:</label>
         <div class="row">
@@ -57,31 +59,50 @@
 
 @code {
   private string username;
-  private decimal? userBalance;
+  private decimal? userBalance { get; set; }
   private decimal depositAmount;
   private decimal withdrawAmount;
+  private string balanceKey = "balance-of-";
+  private Data lastData;
 
   private async Task LoadBalance()
   {
-    var result = await service.StrongGet($"balance-{username}");
-    userBalance = 100.00m;
-  }
-
-  private void HandleDeposit()
-  {
-    if (depositAmount > 0)
+    var result = await service.StrongGet(balanceKey + username);
+    lastData = result;
+    if (lastData.Value == "")
     {
-      userBalance += depositAmount;
-      depositAmount = 0; // Reset depositAmount after deposit
+      lastData.Value = "None";
+    }
+    if (result.LogIndex != -1)
+    {
+      var balance = converter.JsonToBalance(result.Value);
+      userBalance = balance;
+    }
+    else
+    {
+      userBalance = null;
     }
   }
 
-  private void HandleWithdrawal()
+  private async Task HandleDeposit()
+  {
+    if (depositAmount > 0)
+    {
+      var newBalance = converter.BalanceToJson((userBalance ?? 0) + depositAmount);
+      await service.TryUpdate(balanceKey + username, lastData.Value, newBalance, lastData.LogIndex);
+      depositAmount = 0;
+      await LoadBalance();
+    }
+  }
+
+  private async Task HandleWithdrawal()
   {
     if (withdrawAmount > 0 && (userBalance ?? 0) >= withdrawAmount)
     {
-      userBalance -= withdrawAmount;
-      withdrawAmount = 0; // Reset withdrawAmount after withdrawal
+      var newBalance = converter.BalanceToJson((userBalance ?? 0) - withdrawAmount);
+      await service.TryUpdate(balanceKey + username, lastData.Value, newBalance, lastData.LogIndex);
+      withdrawAmount = 0;
+      await LoadBalance();
     }
   }
 }

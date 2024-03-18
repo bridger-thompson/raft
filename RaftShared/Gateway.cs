@@ -105,7 +105,7 @@ namespace RaftShared
       return null;
     }
 
-    public async Task<bool> CompareVersionAndSwapAsync(string key, int expectedValue, int newValue, int expectedLogIndex)
+    public async Task<bool> CompareVersionAndSwapAsync(string key, string expectedValue, string newValue, int expectedLogIndex)
     {
       var leaderUrl = await FindLeaderAsync();
       if (leaderUrl != null)
@@ -115,8 +115,8 @@ namespace RaftShared
           var content = new FormUrlEncodedContent(new[]
           {
               new KeyValuePair<string, string>("key", key),
-              new KeyValuePair<string, string>("expectedValue", expectedValue.ToString()),
-              new KeyValuePair<string, string>("newValue", newValue.ToString()),
+              new KeyValuePair<string, string>("expectedValue", expectedValue),
+              new KeyValuePair<string, string>("newValue", newValue),
               new KeyValuePair<string, string>("expectedLogIndex", expectedLogIndex.ToString())
           });
 
