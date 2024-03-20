@@ -18,5 +18,6 @@ builder.Services.AddScoped<QuantityConverter>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<BalanceService>();
 builder.Services.AddScoped<CartService>();
+builder.Services.AddScoped<OrderService>();
 
 await builder.Build().RunAsync();

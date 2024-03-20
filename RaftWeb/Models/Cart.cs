@@ -1,5 +1,3 @@
-
-
 namespace RaftWeb.Models;
 
 public class Cart

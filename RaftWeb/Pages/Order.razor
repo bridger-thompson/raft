@@ -4,6 +4,7 @@
 @inject RaftService service;
 @inject ProductService productService;
 @inject CartService cartService;
+@inject OrderService orderService;
 @page "/order"
 
 <EditForm Model="@this" class="g-2" OnValidSubmit="Load">
@@ -67,6 +68,9 @@
             <strong>@TotalPrice.ToString("C")</strong>
           </li>
         </ul>
+        <div class="text-center">
+          <button class="btn btn-primary" @onclick="() => Checkout()">Checkout</button>
+        </div>
       </div>
     </div>
   </div>
@@ -112,9 +116,8 @@
 
   private async Task Checkout()
   {
-    // add order
-    // clear cart
-
+    await orderService.AddOrder(Cart);
+    await cartService.ClearCart(Cart, lastCartData);
     await Load();
   }
 }

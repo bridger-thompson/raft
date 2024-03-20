@@ -1,0 +1,25 @@
+@using RaftWeb.Services;
+@inject OrderService orderService;
+@page "/orders"
+
+<div class="container">
+  <h3>Orders</h3>
+  @foreach (var orderId in OrderIds)
+  {
+    <OrderComponent OrderId="@orderId" />
+  }
+</div>
+
+@code {
+  private Guid[] OrderIds = [];
+
+  protected override async Task OnInitializedAsync()
+  {
+    await Load();
+  }
+
+  private async Task Load()
+  {
+    OrderIds = await orderService.GetPendingOrders();
+  }
+}

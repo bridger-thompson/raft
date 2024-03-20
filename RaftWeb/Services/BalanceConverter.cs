@@ -6,7 +6,7 @@ public class BalanceConverter
 {
   public string BalanceToJson(decimal balance)
   {
-    var balanceObject = new { balance = balance };
+    var balanceObject = new { balance };
     return JsonSerializer.Serialize(balanceObject);
   }
 

@@ -1,0 +1,57 @@
+@using RaftWeb.Models;
+@using RaftWeb.Services;
+@inject OrderService orderService;
+
+<div class="border rounded shadow-sm mb-2">
+  @if (Cart is not null)
+  {
+    <div class="row my-2">
+      <div class="col ps-3">
+        <div class="fw-bold">Placed By:</div>
+        <div>@Cart.Username</div>
+        <div>Status: @Status</div>
+      </div>
+      <div class="col">
+        <div class="fw-bold">Items:</div>
+        <div class="list-group">
+          @foreach (var item in Cart.Items)
+          {
+            <li class="list-group-item d-flex justify-content-between lh-sm">
+              <div>
+                <div class="fw-bold">@item.Name</div>
+                <div class="text-muted small">Quantity: @item.Quantity</div>
+              </div>
+              <span>@item.Cost.ToString("C")</span>
+            </li>
+          }
+        </div>
+      </div>
+      <div class="col text-center">
+        <div class="fw-bold">Total (USD): @TotalPrice?.ToString("C")</div>
+        <div class="mt-2">
+          <button class="btn btn-primary">Process</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+
+
+@code {
+  [Parameter]
+  public Guid OrderId { get; set; }
+
+  private Cart? Cart;
+  private decimal? TotalPrice => Cart?.Items.Sum(item => item.Cost * (item.Quantity ?? 1));
+  private string Status = string.Empty;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await Load(OrderId);
+  }
+
+  private async Task Load(Guid orderId)
+  {
+    (Cart, Status) = await orderService.GetOrder(orderId);
+  }
+}

@@ -41,6 +41,12 @@ public class CartService(RaftService service)
     }
   }
 
+  public async Task ClearCart(Cart cart, Data lastCartData)
+  {
+    cart.Items = [];
+    var newCart = CartToJson(cart);
+    await service.TryUpdate(GetKey(cart.Username), lastCartData.Value, newCart, lastCartData.LogIndex);
+  }
 
   public Cart JsonToCart(string jsonString)
   {
