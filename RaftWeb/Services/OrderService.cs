@@ -59,11 +59,7 @@ public class OrderService(RaftService service)
     {
       try
       {
-        var result = await service.StrongGet(pendingOrdersKey);
-        var pendingOrders = await GetPendingOrders();
-        pendingOrders = [.. pendingOrders, id];
-        var newPendingOrders = JsonSerializer.Serialize(pendingOrders);
-        await service.TryUpdate(pendingOrdersKey, result.Value, newPendingOrders, result.LogIndex);
+        await AddPendingOrder(id);
 
         updateSuccessful = true;
       }
@@ -78,6 +74,15 @@ public class OrderService(RaftService service)
     {
       throw new TimeoutException("Failed to add order to pending orders within the timeout period.");
     }
+  }
+
+  public async Task AddPendingOrder(Guid id)
+  {
+    var result = await service.StrongGet(pendingOrdersKey);
+    var pendingOrders = await GetPendingOrders();
+    pendingOrders = [.. pendingOrders, id];
+    var newPendingOrders = JsonSerializer.Serialize(pendingOrders);
+    await service.TryUpdate(pendingOrdersKey, result.Value, newPendingOrders, result.LogIndex);
   }
 
   public async Task RemovePendingOrder(Guid id)

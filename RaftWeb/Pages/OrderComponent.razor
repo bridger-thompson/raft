@@ -52,8 +52,7 @@
   private string Status = string.Empty;
   private decimal? usersBalance;
   private decimal? vendorBalance;
-  private Data lastVendorBalanceData;
-  private Data lastBalanceData;
+  private List<Func<Task>> compensatingActions = new();
 
   protected override async Task OnInitializedAsync()
   {
@@ -66,53 +65,103 @@
     if (Cart is not null)
     {
       var balanceResult = await service.StrongGet(balanceService.GetKey(Cart.Username));
-      lastBalanceData = balanceResult;
       usersBalance = balanceService.GetBalance(balanceResult);
 
 
       var vendorResult = await service.StrongGet(balanceService.GetKey("vendor"));
-      lastVendorBalanceData = vendorResult;
       vendorBalance = balanceService.GetBalance(vendorResult);
     }
   }
 
   private async Task Process()
   {
-    if (Cart is not null && TotalPrice is not null)
+    if (Cart is not null && TotalPrice.HasValue && usersBalance.HasValue && vendorBalance.HasValue)
     {
-      // balance of the user is reduced by that total price, continuing to retry as long as the new balance is non-negative
-      // (undo is to replace the price)
-      await balanceService.Withdraw(usersBalance, TotalPrice ?? 0, Cart.Username, lastBalanceData);
-
-      // stock of each product is reduced, continuing to retry as long as the resulting stock is non-negative
-      // (undo is to increase the stock by the same amount)
-      foreach (var item in Cart.Items)
-      {
-        for (int i = 0; i < item.Quantity; i++)
-        {
-          var productResult = await service.StrongGet(productService.GetKey(item));
-          var quantity = productService.LoadQuantity(productResult);
-          if (quantity is not null && quantity > 0)
-          {
-            await productService.DecreaseQuantity(productService.GetKey(item), quantity, productResult);
-          }
-        }
-      }
-
-      // balance of the vendor (username="vendor") is increased by the total price, continuing to retry until successful
-      // (undo is to reduce the amount)
-      await balanceService.Deposit(vendorBalance, TotalPrice ?? 0, "vendor", lastVendorBalanceData);
-
-      // generate a unique processor id and change the order status from pending to "processed-by <processor-id>"
-      // (fail if we see that the order was processed by some other processor id; undo for this would be to mark the status as
-      // pending-- - which would only happen conditioned on the value still having our processor - id)
-      var processorId = Guid.NewGuid();
-      var status = $"Processed By {processorId}";
-      await orderService.UpdateOrderStatus(OrderId, status);
-
-      // remove order id from pending-orders (continue to retry this until a timeout is reached)
-      await orderService.RemovePendingOrder(OrderId);
-      await OnOrderProcessed.InvokeAsync();
+      await WithdrawUserBalance();
+      await DecreaseStock();
+      await DepositVendorBalance();
+      await UpdateOrderStatusToProcessed();
+      await RemoveOrderFromPending();
     }
+  }
+
+  private async Task WithdrawUserBalance()
+  {
+    var balanceResult = await service.StrongGet(balanceService.GetKey(Cart.Username));
+    await balanceService.Withdraw(usersBalance, TotalPrice ?? 0, Cart.Username, balanceResult);
+    compensatingActions.Add(CompensateUserBalanceWithdrawal);
+  }
+
+  private async Task CompensateUserBalanceWithdrawal()
+  {
+    var balanceResult = await service.StrongGet(balanceService.GetKey(Cart.Username));
+    await balanceService.Deposit(usersBalance, TotalPrice ?? 0, Cart.Username, balanceResult);
+  }
+
+  private async Task DecreaseStock()
+  {
+    foreach (var item in Cart.Items)
+    {
+      var productResult = await service.StrongGet(productService.GetKey(item));
+      var quantity = productService.LoadQuantity(productResult);
+      if (quantity is not null && quantity > 0)
+      {
+        await productService.DecreaseQuantity(productService.GetKey(item), quantity, productResult, item.Quantity ?? 1);
+      }
+    }
+    foreach (var item in Cart.Items)
+    {
+      compensatingActions.Add(() => CompensateStockDecrease(item));
+    }
+  }
+
+  private async Task CompensateStockDecrease(Product item)
+  {
+    var productResult = await service.StrongGet(productService.GetKey(item));
+    var quantity = productService.LoadQuantity(productResult);
+    if (quantity is not null && quantity > 0)
+    {
+      await productService.IncreaseQuantity(productService.GetKey(item), quantity, productResult, item.Quantity ?? 1);
+    }
+  }
+
+  private async Task DepositVendorBalance()
+  {
+    var vendorResult = await service.StrongGet(balanceService.GetKey("vendor"));
+    await balanceService.Deposit(vendorBalance, TotalPrice ?? 0, "vendor", vendorResult);
+    compensatingActions.Add(CompensateVendorBalanceDeposit);
+  }
+
+  private async Task CompensateVendorBalanceDeposit()
+  {
+    var vendorResult = await service.StrongGet(balanceService.GetKey("vendor"));
+    await balanceService.Withdraw(vendorBalance, TotalPrice ?? 0, "vendor", vendorResult);
+  }
+
+  private async Task UpdateOrderStatusToProcessed()
+  {
+    var processorId = Guid.NewGuid();
+    var status = $"Processed By {processorId}";
+    await orderService.UpdateOrderStatus(OrderId, status);
+    compensatingActions.Add(() => CompensateOrderStatusUpdate(processorId));
+  }
+
+  private async Task CompensateOrderStatusUpdate(Guid processorId)
+  {
+    var status = $"pending from processor {processorId}";
+    await orderService.UpdateOrderStatus(OrderId, status);
+  }
+
+  private async Task RemoveOrderFromPending()
+  {
+    await orderService.RemovePendingOrder(OrderId);
+    await OnOrderProcessed.InvokeAsync();
+    compensatingActions.Add(CompensateRemoveOrderFromPending);
+  }
+
+  private async Task CompensateRemoveOrderFromPending()
+  {
+    await orderService.AddPendingOrder(OrderId);
+    await OnOrderProcessed.InvokeAsync();
   }
 }

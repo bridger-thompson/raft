@@ -37,15 +37,15 @@ class ProductService(RaftService service, QuantityConverter converter)
     return quantity;
   }
 
-  public async Task IncreaseQuantity(string key, int? quantity, Data lastData)
+  public async Task IncreaseQuantity(string key, int? quantity, Data lastData, int amount = 1)
   {
-    var newQuantity = converter.QuantityToJson((quantity ?? 0) + 1);
+    var newQuantity = converter.QuantityToJson((quantity ?? 0) + amount);
     await service.TryUpdate(key, lastData.Value, newQuantity, lastData.LogIndex);
   }
 
-  public async Task DecreaseQuantity(string key, int? quantity, Data lastData)
+  public async Task DecreaseQuantity(string key, int? quantity, Data lastData, int amount = 1)
   {
-    var newQuantity = converter.QuantityToJson((quantity ?? 0) - 1);
+    var newQuantity = converter.QuantityToJson((quantity ?? 0) - amount);
     await service.TryUpdate(key, lastData.Value, newQuantity, lastData.LogIndex);
   }
 }
