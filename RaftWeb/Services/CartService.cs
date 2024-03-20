@@ -30,6 +30,17 @@ public class CartService(RaftService service)
     await service.TryUpdate(GetKey(cart.Username), lastCartData.Value, newCart, lastCartData.LogIndex);
   }
 
+  public async Task RemoveFromCart(Cart cart, Product productToRemove, Data lastCartData)
+  {
+    var product = cart.Items.FirstOrDefault(p => p.Name == productToRemove.Name);
+    if (product != null)
+    {
+      cart.Items.Remove(product);
+      var newCart = CartToJson(cart);
+      await service.TryUpdate(GetKey(cart.Username), lastCartData.Value, newCart, lastCartData.LogIndex);
+    }
+  }
+
 
   public Cart JsonToCart(string jsonString)
   {

@@ -3,7 +3,6 @@
 @using RaftWeb.Services;
 @inject RaftService service;
 @inject ProductService productService;
-@inject BalanceService balanceService;
 @inject CartService cartService;
 @page "/order"
 
@@ -23,7 +22,6 @@
 {
 
   <div class="container mt-3">
-  <p>Your balance is: @((userBalance == null) ? "N/A" : $"${userBalance:0.00}")</p>
   <div class="row">
     <div class="col-md-8">
       <h3>Products</h3>
@@ -47,16 +45,21 @@
         </div>
       </div>
       <div class="col-md-4">
-        <h3>Cart</h3>
+        <div class="fs-3">Cart</div>
         <ul class="list-group mb-3">
           @foreach (var item in Cart.Items)
           {
             <li class="list-group-item d-flex justify-content-between lh-sm">
               <div>
-                <div>@item.Name</div>
+                <div class="fw-bold">@item.Name</div>
                 <div class="text-muted small">Quantity: @item.Quantity</div>
               </div>
-              <span class="text-muted">@item.Cost.ToString("C")</span>
+              <div class="my-auto">
+                <span>@item.Cost.ToString("C")</span>
+              </div>
+              <div class="my-auto">
+                <button class="btn btn-outline-danger px-2 py-0" @onclick="() => RemoveFromCart(item)">x</button>
+              </div>
             </li>
           }
           <li class="list-group-item d-flex justify-content-between">
@@ -74,22 +77,17 @@
   private List<Product> Products = new();
   private Cart Cart = new();
   private decimal TotalPrice => Cart.Items.Sum(item => item.Cost * (item.Quantity ?? 1));
-  private Data lastBalanceData;
   private Data lastCartData;
-  private decimal? userBalance { get; set; }
 
   private async Task Load()
   {
+    Cart.Username = username;
     Products = productService.GetProducts();
     foreach (var product in Products)
     {
       var result = await service.StrongGet(productService.GetKey(product));
       product.Quantity = productService.LoadQuantity(result);
     }
-
-    var balanceResult = await service.StrongGet(balanceService.GetKey(username));
-    lastBalanceData = balanceResult;
-    userBalance = balanceService.GetBalance(balanceResult);
 
     var cartResult = await service.StrongGet(cartService.GetKey(username));
     lastCartData = cartResult;
@@ -102,22 +100,20 @@
 
   private async Task AddToCart(Product product)
   {
-    var existingProduct = Cart.Items.FirstOrDefault(p => p.Name == product.Name);
-    if (userBalance - product.Cost > 0 && product.Quantity > 0)
-    {
-      if (existingProduct == null || product.Quantity > (existingProduct?.Quantity ?? 0))
-      {
-        await cartService.AddToCart(Cart, product, lastCartData);
-        await Load();
-      }
-    }
+    await cartService.AddToCart(Cart, product, lastCartData);
+    await Load();
+  }
+
+  private async Task RemoveFromCart(Product product)
+  {
+    await cartService.RemoveFromCart(Cart, product, lastCartData);
+    await Load();
   }
 
   private async Task Checkout()
   {
-    // update raft balance
-    await balanceService.Deposit(userBalance, TotalPrice, username, lastBalanceData);
-    // update raft stock
+    // add order
+    // clear cart
 
     await Load();
   }
