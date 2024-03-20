@@ -6,7 +6,11 @@
   <h3>Orders</h3>
   @foreach (var orderId in OrderIds)
   {
-    <OrderComponent OrderId="@orderId" />
+    <OrderComponent OrderId="@orderId" OnOrderProcessed="Load" />
+  }
+  @if (OrderIds.Length == 0)
+  {
+    <div>All caught up. No pending orders at this time.</div>
   }
 </div>
 
@@ -21,5 +25,6 @@
   private async Task Load()
   {
     OrderIds = await orderService.GetPendingOrders();
+    StateHasChanged();
   }
 }

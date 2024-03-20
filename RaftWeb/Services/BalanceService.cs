@@ -30,4 +30,13 @@ public class BalanceService(BalanceConverter converter, RaftService service)
     var newBalance = converter.BalanceToJson((balance ?? 0) + amount);
     await service.TryUpdate(GetKey(username), lastData.Value, newBalance, lastData.LogIndex);
   }
+
+  public async Task Withdraw(decimal? balance, decimal amount, string username, Data lastData)
+  {
+    if (amount > 0)
+    {
+      var newBalance = converter.BalanceToJson((balance ?? 0) - amount);
+      await service.TryUpdate(GetKey(username), lastData.Value, newBalance, lastData.LogIndex);
+    }
+  }
 }

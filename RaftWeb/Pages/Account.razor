@@ -12,7 +12,7 @@
 <EditForm Model="@this" class="g-2" OnValidSubmit="LoadBalance">
   <label for="username" class="form-label">Username:</label>
   <div class="row">
-    <div class="col">
+    <div class="col-auto">
       <InputText id="username" class="form-control" @bind-Value="username" />
     </div>
     <div class="col-auto">
@@ -84,7 +84,7 @@
 
   private async Task HandleWithdrawal()
   {
-    if (withdrawAmount > 0 && (userBalance ?? 0) >= withdrawAmount)
+    if (withdrawAmount > 0)
     {
       var newBalance = converter.BalanceToJson((userBalance ?? 0) - withdrawAmount);
       await service.TryUpdate(balanceService.GetKey(username), lastData.Value, newBalance, lastData.LogIndex);

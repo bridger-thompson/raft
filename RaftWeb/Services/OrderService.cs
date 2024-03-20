@@ -48,14 +48,50 @@ public class OrderService(RaftService service)
     await service.TryUpdate(GetKey(id), "None", newOrder, -1);
 
     // add order status
-    await service.TryUpdate(GetStatusKey(id), "None", "pending", -1);
+    await UpdateOrderStatus(id, "pending");
 
-    // add to pending orders
+    // add to pending orders (keep retrying until a timeout)
+    TimeSpan timeout = TimeSpan.FromSeconds(30);
+    DateTime startTime = DateTime.UtcNow;
+    bool updateSuccessful = false;
+
+    while (DateTime.UtcNow - startTime < timeout && !updateSuccessful)
+    {
+      try
+      {
+        var result = await service.StrongGet(pendingOrdersKey);
+        var pendingOrders = await GetPendingOrders();
+        pendingOrders = [.. pendingOrders, id];
+        var newPendingOrders = JsonSerializer.Serialize(pendingOrders);
+        await service.TryUpdate(pendingOrdersKey, result.Value, newPendingOrders, result.LogIndex);
+
+        updateSuccessful = true;
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Error adding pending order: {ex}");
+        await Task.Delay(1000);
+      }
+    }
+
+    if (!updateSuccessful)
+    {
+      throw new TimeoutException("Failed to add order to pending orders within the timeout period.");
+    }
+  }
+
+  public async Task RemovePendingOrder(Guid id)
+  {
     var result = await service.StrongGet(pendingOrdersKey);
     var pendingOrders = await GetPendingOrders();
-    pendingOrders = [.. pendingOrders, id];
-    var newPendingOrders = JsonSerializer.Serialize(pendingOrders);
-    await service.TryUpdate(pendingOrdersKey, result.Value, newPendingOrders, result.LogIndex);
+    var remainingOrders = JsonSerializer.Serialize(pendingOrders.Where(p => p != id));
+    await service.TryUpdate(pendingOrdersKey, result.Value, remainingOrders, result.LogIndex);
+  }
+
+  public async Task UpdateOrderStatus(Guid id, string status)
+  {
+    var statusResult = await service.StrongGet(GetStatusKey(id));
+    await service.TryUpdate(GetStatusKey(id), statusResult.Value, status, statusResult.LogIndex);
   }
 
 }
