@@ -6,18 +6,22 @@ public class QuantityConverter
 {
   public string QuantityToJson(int quantity)
   {
-    var quantityObject = new { quantity = quantity };
+    var quantityObject = new { quantity };
     return JsonSerializer.Serialize(quantityObject);
   }
 
   public int JsonToQuantity(string jsonString)
   {
-    var quantityObject = JsonSerializer.Deserialize<QuantityObject>(jsonString);
-    return quantityObject?.quantity ?? -1; // Default to -1 if null
+    var options = new JsonSerializerOptions
+    {
+      PropertyNameCaseInsensitive = true
+    };
+    var quantityObject = JsonSerializer.Deserialize<QuantityObject>(jsonString, options);
+    return quantityObject?.Quantity ?? -1;
   }
 
   private class QuantityObject
   {
-    public int quantity { get; set; }
+    public int Quantity { get; set; }
   }
 }

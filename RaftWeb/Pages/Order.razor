@@ -1,0 +1,124 @@
+@using RaftShared;
+@using RaftWeb.Models;
+@using RaftWeb.Services;
+@inject RaftService service;
+@inject ProductService productService;
+@inject BalanceService balanceService;
+@inject CartService cartService;
+@page "/order"
+
+<EditForm Model="@this" class="g-2" OnValidSubmit="Load">
+  <label for="username" class="form-label">Username:</label>
+  <div class="row">
+    <div class="col">
+      <InputText id="username" class="form-control" @bind-Value="username" />
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary">Submit</button>
+    </div>
+  </div>
+</EditForm>
+
+@if (username is not null)
+{
+
+  <div class="container mt-3">
+  <p>Your balance is: @((userBalance == null) ? "N/A" : $"${userBalance:0.00}")</p>
+  <div class="row">
+    <div class="col-md-8">
+      <h3>Products</h3>
+      <div class="list-group">
+        @foreach (var product in Products)
+          {
+            @if (product.Quantity is not null && product.Quantity > 0)
+            {
+              <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="mb-1 fs-5">@product.Name</div>
+                  <p class="mb-1">Price: @product.Cost.ToString("C")</p>
+                </div>
+                <div>
+                  <button class="btn btn-primary" @onclick="() => AddToCart(product)">Add to Cart</button>
+                  <div class="small text-center">@product.Quantity remaining</div>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </div>
+      <div class="col-md-4">
+        <h3>Cart</h3>
+        <ul class="list-group mb-3">
+          @foreach (var item in Cart.Items)
+          {
+            <li class="list-group-item d-flex justify-content-between lh-sm">
+              <div>
+                <div>@item.Name</div>
+                <div class="text-muted small">Quantity: @item.Quantity</div>
+              </div>
+              <span class="text-muted">@item.Cost.ToString("C")</span>
+            </li>
+          }
+          <li class="list-group-item d-flex justify-content-between">
+            <span>Total (USD)</span>
+            <strong>@TotalPrice.ToString("C")</strong>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+  private string username;
+  private List<Product> Products = new();
+  private Cart Cart = new();
+  private decimal TotalPrice => Cart.Items.Sum(item => item.Cost * (item.Quantity ?? 1));
+  private Data lastBalanceData;
+  private Data lastCartData;
+  private decimal? userBalance { get; set; }
+
+  private async Task Load()
+  {
+    Products = productService.GetProducts();
+    foreach (var product in Products)
+    {
+      var result = await service.StrongGet(productService.GetKey(product));
+      product.Quantity = productService.LoadQuantity(result);
+    }
+
+    var balanceResult = await service.StrongGet(balanceService.GetKey(username));
+    lastBalanceData = balanceResult;
+    userBalance = balanceService.GetBalance(balanceResult);
+
+    var cartResult = await service.StrongGet(cartService.GetKey(username));
+    lastCartData = cartResult;
+    if (cartResult.LogIndex != -1)
+    {
+      Cart = cartService.JsonToCart(cartResult.Value);
+    }
+    StateHasChanged();
+  }
+
+  private async Task AddToCart(Product product)
+  {
+    var existingProduct = Cart.Items.FirstOrDefault(p => p.Name == product.Name);
+    if (userBalance - product.Cost > 0 && product.Quantity > 0)
+    {
+      if (existingProduct == null || product.Quantity > (existingProduct?.Quantity ?? 0))
+      {
+        await cartService.AddToCart(Cart, product, lastCartData);
+        await Load();
+      }
+    }
+  }
+
+  private async Task Checkout()
+  {
+    // update raft balance
+    await balanceService.Deposit(userBalance, TotalPrice, username, lastBalanceData);
+    // update raft stock
+
+    await Load();
+  }
+}

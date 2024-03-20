@@ -1,6 +1,8 @@
 @using RaftShared;
+@using RaftWeb.Models;
 @using RaftWeb.Services;
 @inject RaftService service;
+@inject ProductService productService;
 @inject QuantityConverter converter;
 @namespace RaftWeb.Pages
 
@@ -18,48 +20,29 @@
   [Parameter]
   public Product Product { get; set; }
   private Data lastData;
-  private string stockKey = "stock-of-";
 
   protected override async Task OnInitializedAsync()
   {
     await LoadQuantity();
   }
 
-  private string GetKey()
-  {
-    return stockKey + Product.Name.Replace(' ', '-');
-  }
-
   private async Task LoadQuantity()
   {
-    var result = await service.StrongGet(GetKey());
+    var result = await service.StrongGet(productService.GetKey(Product));
     lastData = result;
-    if (lastData.Value == "")
-    {
-      lastData.Value = "None";
-    }
-    if (result.LogIndex == -1)
-    {
-      Product.Quantity = null;
-    }
-    else
-    {
-      Product.Quantity = converter.JsonToQuantity(result.Value);
-    }
+    Product.Quantity = productService.LoadQuantity(result);
     StateHasChanged();
   }
 
   private async Task IncreaseQuantity()
   {
-    var newQuantity = converter.QuantityToJson((Product.Quantity ?? 0) + 1);
-    await service.TryUpdate(GetKey(), lastData.Value, newQuantity, lastData.LogIndex);
+    await productService.IncreaseQuantity(productService.GetKey(Product), Product.Quantity, lastData);
     await LoadQuantity();
   }
 
   private async Task DecreaseQuantity()
   {
-    var newQuantity = converter.QuantityToJson((Product.Quantity ?? 0) - 1);
-    await service.TryUpdate(GetKey(), lastData.Value, newQuantity, lastData.LogIndex);
+    await productService.DecreaseQuantity(productService.GetKey(Product), Product.Quantity, lastData);
     await LoadQuantity();
   }
 

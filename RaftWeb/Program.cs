@@ -15,5 +15,8 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(baseAddr
 builder.Services.AddScoped<RaftService>();
 builder.Services.AddScoped<BalanceConverter>();
 builder.Services.AddScoped<QuantityConverter>();
+builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<BalanceService>();
+builder.Services.AddScoped<CartService>();
 
 await builder.Build().RunAsync();

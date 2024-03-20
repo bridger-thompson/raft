@@ -1,4 +1,4 @@
-namespace RaftShared;
+namespace RaftWeb.Models;
 
 public class Product
 {

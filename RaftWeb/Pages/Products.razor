@@ -1,7 +1,7 @@
 ﻿@using RaftWeb.Services;
-@using RaftShared;
+@using RaftWeb.Models;
 @using RaftWeb.Pages;
-@inject RaftService service;
+@inject ProductService service;
 @page "/products"
 
 <PageTitle>Product Management</PageTitle>
@@ -17,13 +17,10 @@
 }
 
 @code {
-    private string stockKey = "stock-of-";
-    private List<Product> products = new List<Product>
-{
-new Product { Name = "Product 1", Cost = 1.00m },
-new Product { Name = "Product 2", Cost = 1.00m },
-new Product { Name = "Product 3", Cost = 1.00m },
-new Product { Name = "Product 4", Cost = 1.00m },
-new Product { Name = "Product 5", Cost = 1.00m }
-};
+    private List<Product> products { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        products = service.GetProducts();
+    }
 }

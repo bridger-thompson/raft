@@ -1,6 +1,7 @@
 ﻿@using RaftWeb.Services;
 @using RaftShared;
 @inject RaftService service;
+@inject BalanceService balanceService;
 @inject BalanceConverter converter;
 @page "/"
 
@@ -62,34 +63,20 @@
   private decimal? userBalance { get; set; }
   private decimal depositAmount;
   private decimal withdrawAmount;
-  private string balanceKey = "balance-of-";
   private Data lastData;
 
   private async Task LoadBalance()
   {
-    var result = await service.StrongGet(balanceKey + username);
+    var result = await service.StrongGet(balanceService.GetKey(username));
     lastData = result;
-    if (lastData.Value == "")
-    {
-      lastData.Value = "None";
-    }
-    if (result.LogIndex != -1)
-    {
-      var balance = converter.JsonToBalance(result.Value);
-      userBalance = balance;
-    }
-    else
-    {
-      userBalance = null;
-    }
+    userBalance = balanceService.GetBalance(result);
   }
 
   private async Task HandleDeposit()
   {
     if (depositAmount > 0)
     {
-      var newBalance = converter.BalanceToJson((userBalance ?? 0) + depositAmount);
-      await service.TryUpdate(balanceKey + username, lastData.Value, newBalance, lastData.LogIndex);
+      await balanceService.Deposit(userBalance, depositAmount, username, lastData);
       depositAmount = 0;
       await LoadBalance();
     }
@@ -100,7 +87,7 @@
     if (withdrawAmount > 0 && (userBalance ?? 0) >= withdrawAmount)
     {
       var newBalance = converter.BalanceToJson((userBalance ?? 0) - withdrawAmount);
-      await service.TryUpdate(balanceKey + username, lastData.Value, newBalance, lastData.LogIndex);
+      await service.TryUpdate(balanceService.GetKey(username), lastData.Value, newBalance, lastData.LogIndex);
       withdrawAmount = 0;
       await LoadBalance();
     }
