@@ -77,11 +77,24 @@
   {
     if (Cart is not null && TotalPrice.HasValue && usersBalance.HasValue && vendorBalance.HasValue)
     {
-      await WithdrawUserBalance();
-      await DecreaseStock();
-      await DepositVendorBalance();
-      await UpdateOrderStatusToProcessed();
-      await RemoveOrderFromPending();
+      compensatingActions = [];
+      var processorId = Guid.NewGuid();
+      try
+      {
+        await WithdrawUserBalance();
+        await DecreaseStock();
+        await DepositVendorBalance();
+        await UpdateOrderStatusToProcessed(processorId);
+        await RemoveOrderFromPending();
+      }
+      catch
+      {
+        foreach (var action in compensatingActions)
+        {
+          await action();
+        }
+        await RejectOrder(processorId);
+      }
     }
   }
 
@@ -138,9 +151,8 @@
     await balanceService.Withdraw(vendorBalance, TotalPrice ?? 0, "vendor", vendorResult);
   }
 
-  private async Task UpdateOrderStatusToProcessed()
+  private async Task UpdateOrderStatusToProcessed(Guid processorId)
   {
-    var processorId = Guid.NewGuid();
     var status = $"Processed By {processorId}";
     var orderStatus = await orderService.GetOrderStatus(OrderId);
     if (!orderStatus.Value.Contains("Processed"))
@@ -167,5 +179,11 @@
   {
     await orderService.AddPendingOrder(OrderId);
     await OnOrderProcessed.InvokeAsync();
+  }
+
+  private async Task RejectOrder(Guid processorId)
+  {
+    var status = $"Rejected by {processorId}";
+    await orderService.UpdateOrderStatus(OrderId, status);
   }
 }
