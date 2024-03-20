@@ -87,16 +87,44 @@ public class OrderService(RaftService service)
 
   public async Task RemovePendingOrder(Guid id)
   {
-    var result = await service.StrongGet(pendingOrdersKey);
-    var pendingOrders = await GetPendingOrders();
-    var remainingOrders = JsonSerializer.Serialize(pendingOrders.Where(p => p != id));
-    await service.TryUpdate(pendingOrdersKey, result.Value, remainingOrders, result.LogIndex);
+    TimeSpan timeout = TimeSpan.FromSeconds(30);
+    DateTime startTime = DateTime.UtcNow;
+    bool updateSuccessful = false;
+
+    while (DateTime.UtcNow - startTime < timeout && !updateSuccessful)
+    {
+      try
+      {
+        var result = await service.StrongGet(pendingOrdersKey);
+        var pendingOrders = await GetPendingOrders();
+        var remainingOrders = JsonSerializer.Serialize(pendingOrders.Where(p => p != id));
+        await service.TryUpdate(pendingOrdersKey, result.Value, remainingOrders, result.LogIndex);
+
+        updateSuccessful = true;
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Error adding pending order: {ex}");
+        await Task.Delay(1000);
+      }
+    }
+
+    if (!updateSuccessful)
+    {
+      throw new TimeoutException("Failed to add order to pending orders within the timeout period.");
+    }
+
   }
 
   public async Task UpdateOrderStatus(Guid id, string status)
   {
-    var statusResult = await service.StrongGet(GetStatusKey(id));
+    var statusResult = await GetOrderStatus(id);
     await service.TryUpdate(GetStatusKey(id), statusResult.Value, status, statusResult.LogIndex);
+  }
+
+  public async Task<Data> GetOrderStatus(Guid id)
+  {
+    return await service.StrongGet(GetStatusKey(id));
   }
 
 }

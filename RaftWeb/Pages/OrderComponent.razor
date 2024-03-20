@@ -142,7 +142,11 @@
   {
     var processorId = Guid.NewGuid();
     var status = $"Processed By {processorId}";
-    await orderService.UpdateOrderStatus(OrderId, status);
+    var orderStatus = await orderService.GetOrderStatus(OrderId);
+    if (!orderStatus.Value.Contains("Processed"))
+    {
+      await orderService.UpdateOrderStatus(OrderId, status);
+    }
     compensatingActions.Add(() => CompensateOrderStatusUpdate(processorId));
   }
 
